@@ -6,6 +6,30 @@ Bitácora de desarrollo. Lo más reciente arriba. Lee las últimas 3-5 entradas 
 
 ---
 
+## 2026-04-10 — Fix: OFF v2 devuelve HTTP 404 en "not found", confundido con "servicio caído"
+
+**Contexto**: tras desplegar Fase 2, Igor probó escaneando un barcode (`9412181002307`, de Nueva Zelanda) y recibió "Servicio temporalmente no disponible". La UI y el transporte funcionaban — el fallo estaba en el handler interpretando la respuesta del API OFF.
+
+**Cambio**:
+- `functions/src/services/openfoodfacts.ts` — `fetchFromOpenFoodFacts` ahora distingue tres casos:
+  1. `res.status === 404` → producto NO existe en OFF → return `null` (no lanza).
+  2. `!res.ok` con cualquier otro status (5xx, 403, etc.) → fallo real → `throw new Error`.
+  3. HTTP 200 con `data.status !== 1` o `!data.product` → tratado también como not found (OFF v0/v1 devolvían 200 con `status:0` en el body — hay rutas antiguas que aún lo hacen).
+  Logs `info` diferentes para cada caso de miss para poder distinguirlos en producción.
+
+**Por qué así**:
+- **Verificación empírica antes de arreglar**: lancé `curl -w "%{http_code}"` contra OFF con (a) un barcode conocido (Nutella 3017620422003 → HTTP 200 + producto completo) y (b) el barcode del usuario (9412181002307 → HTTP 404 + `{"status":0,"status_verbose":"product not found"}`). Confirmado el comportamiento antes de tocar código.
+- **Diagnóstico vía logs de Functions**: `npx firebase functions:log --only lookupBarcode` reveló la línea exacta: `"error":"OFF API returned HTTP 404","barcode":"9412181002307"`. El error original del código (`throw new Error(\`OFF API returned HTTP ${res.status}\`)`) lo metía en el catch genérico y salía como `OFF_UNAVAILABLE`. Sin acceso a los logs server-side habría sido imposible adivinar el problema.
+- **OFF v0/v1 vs v2**: el API v2 de OFF usa HTTP 404 para "not found", pero los endpoints antiguos (v0/v1) devolvían siempre 200 con `status:0` en el body. Estamos usando v2 (`api/v2/product/...`) pero el guard del body sigue ahí por defensa — si OFF cambia el comportamiento en el futuro, no nos pilla por sorpresa.
+- **Logs distintos por ruta de miss**: `"OFF product not found (HTTP 404)"` vs `"OFF product not found (body status=0)"`. Si alguna vez vemos inconsistencias, el log nos dice qué ruta tomó el código.
+
+**Notas**:
+- El deploy nuevo es revisión `lookupbarcode-00002-jag` (hash `115c9965…`), verificado vía `firebase functions:list`. La antigua ya no recibe tráfico.
+- No se tocó ni el cliente ni las rules. Solo un fichero TS en `functions/`. Rebuild + deploy solo del handler → ~30s.
+- **Acción futura anotada**: añadir tests unitarios de `fetchFromOpenFoodFacts` con `fetch` mockeado cubriendo los 3 casos (200+product, 200+status0, 404). Cuando llegue F0.3 (Vitest) o cuando añadamos Jest para functions/. Esto es el tipo de bug que un test unitario trivial habría cazado antes del primer deploy.
+
+---
+
 ## 2026-04-10 — Fase 2: backend Functions + barcode scanner (E2E lookupBarcode)
 
 **Contexto**: con Blaze activo, arranco la infraestructura de Firebase Functions y el primer endpoint productivo. Objetivo de la sesión: que un usuario pueda abrir el modal de Nueva Producto en Mi Nevera, pulsar "Escanear código", apuntar la cámara a la etiqueta, y que el producto aparezca autofilled con los datos de OpenFoodFacts listos para confirmar. Todo el cableado E2E, sin desplegar todavía (ese paso queda para cuando Igor haga `firebase login && firebase deploy`).

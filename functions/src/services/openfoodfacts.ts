@@ -75,8 +75,14 @@ export interface MappedFood {
 /**
  * Consulta el API live de OpenFoodFacts para un barcode.
  *
- * @returns El producto mapeado, o `null` si OFF no lo tiene / nutriments incompletos.
- * @throws Error en fallo de red, timeout, o respuesta inválida no JSON.
+ * Comportamiento de OFF v2:
+ *   - Producto existe y completo  → HTTP 200 + { code, product: {...} }
+ *   - Producto NO existe          → HTTP 404 + { code, status: 0, status_verbose: "product not found" }
+ *   - Producto existe pero macros → HTTP 200 pero nutriments[energy-kcal_100g] etc. ausentes
+ *
+ * @returns MappedFood si existe con macros completos; null si no existe o macros incompletos.
+ * @throws Error SOLO en fallo de red, timeout, HTTP 5xx, o JSON inválido.
+ *         Es decir, distingue "el producto no está" (null) de "OFF no responde" (throw).
  */
 export async function fetchFromOpenFoodFacts(barcode: string): Promise<MappedFood | null> {
   const fields = [
@@ -105,13 +111,23 @@ export async function fetchFromOpenFoodFacts(barcode: string): Promise<MappedFoo
       },
     });
 
+    // 404 = producto no encontrado en OFF. Es un "miss" válido, no un error.
+    if (res.status === 404) {
+      logger.info('OFF product not found (HTTP 404)', { barcode });
+      return null;
+    }
+
+    // Cualquier otro status no-OK sí es fallo real del servicio.
     if (!res.ok) {
       throw new Error(`OFF API returned HTTP ${res.status}`);
     }
 
     const data = (await res.json()) as OffResponse;
 
+    // Algunas rutas de OFF devuelven 200 con status:0 en el body.
+    // Lo tratamos también como "not found".
     if (data.status !== 1 || !data.product) {
+      logger.info('OFF product not found (body status=0)', { barcode });
       return null;
     }
 
