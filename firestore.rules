@@ -1,0 +1,59 @@
+rules_version = '2';
+
+// =====================================================================
+// Firestore Security Rules — Fitness App
+// =====================================================================
+// Principio: multi-tenant estricto. Cada usuario solo lee/escribe su
+// propio árbol `users/{uid}/**`. Colecciones públicas (OFF mirror y
+// cache) son lectura autenticada, escritura solo desde Functions con
+// Admin SDK (que se salta las rules).
+//
+// Shape de datos esperado (ver PROJECT_PLAN.md §4):
+//   users/{uid}/data/plan                 — plan del usuario
+//   users/{uid}/history/{sessionId}       — historial de sesiones
+//   users/{uid}/customFoods/{foodId}      — productos personalizados
+//   users/{uid}/profile/main              — entitlements + subscription
+//   offProducts/{barcode}                 — mirror OFF (Fase 4)
+//   productCache/{barcode}                — cache de fallbacks OFF API
+//   _meta/{doc}                           — metadatos públicos
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helpers ---
+    function isAuthed() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuthed() && request.auth.uid == uid;
+    }
+
+    // --- Per-user data: todo bajo users/{uid} solo accesible por el propio usuario ---
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // --- OFF mirror público (Fase 4): lectura autenticada, escritura solo Functions ---
+    match /offProducts/{barcode} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
+    // --- Cache de fallbacks API OFF: lectura autenticada, escritura solo Functions ---
+    match /productCache/{barcode} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
+    // --- Metadatos públicos (schemaVersion, offSync status, etc.) ---
+    match /_meta/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

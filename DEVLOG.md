@@ -6,6 +6,67 @@ Bitácora de desarrollo. Lo más reciente arriba. Lee las últimas 3-5 entradas 
 
 ---
 
+## 2026-04-10 — Fase 2: backend Functions + barcode scanner (E2E lookupBarcode)
+
+**Contexto**: con Blaze activo, arranco la infraestructura de Firebase Functions y el primer endpoint productivo. Objetivo de la sesión: que un usuario pueda abrir el modal de Nueva Producto en Mi Nevera, pulsar "Escanear código", apuntar la cámara a la etiqueta, y que el producto aparezca autofilled con los datos de OpenFoodFacts listos para confirmar. Todo el cableado E2E, sin desplegar todavía (ese paso queda para cuando Igor haga `firebase login && firebase deploy`).
+
+**Cambio**:
+
+*Infraestructura Firebase (nueva):*
+- `firebase.json` — config con functions + firestore + emulators (auth 9099, functions 5001, firestore 8080, ui 4000). Predeploy hook: `npm run build` en functions. Region implícita en los handlers (europe-west1).
+- `.firebaserc` — project id `fitness-6d907` como default.
+- `firestore.rules` — NUEVO. Multi-tenant estricto: helpers `isAuthed()`/`isOwner(uid)`, `users/{uid}/**` solo owner, `offProducts` + `productCache` read auth + write false, `_meta` read público. Comentado con las razones y el shape esperado en cada collection.
+- `firestore.indexes.json` — vacío por ahora (no necesitamos composite indexes aún).
+
+*Functions (TypeScript, firebase-functions v2, gen 2):*
+- `functions/package.json` — deps firebase-admin ^12.7 + firebase-functions ^6.1, Node 22 engine, scripts build/serve/deploy/shell/logs.
+- `functions/tsconfig.json` — strict + noUnusedLocals + noUnusedParameters + lib es2020+dom (dom para AbortController y fetch).
+- `functions/.gitignore` — node_modules, lib, .env*, .runtimeconfig.
+- `functions/src/index.ts` — entry con `initializeApp()` global + re-exports. Un solo bundle initial, pero cada handler vive en su propio fichero para cold-start minimal.
+- `functions/src/lib/errors.ts` — helpers HttpsError con códigos estables (`BARCODE_NOT_FOUND`, `OFF_UNAVAILABLE`, `BARCODE_INVALID`, `NOT_AUTHENTICATED`, `RATE_LIMITED`, `VALIDATION_FAILED`). El cliente discrimina por `err.details.code`.
+- `functions/src/lib/auth.ts` — `requireAuth(request)` que lanza HttpsError unauthenticated si no hay uid.
+- `functions/src/lib/barcode.ts` — `isValidBarcode` (regex 8-14 dígitos, no valida checksum) + `normalizeBarcode`.
+- `functions/src/lib/foodValidation.ts` — **REPLICADO intencionalmente** desde `src/services/foods.js` del cliente. Valida name, category, defaultUnit, servingSize, macros obligatorios/opcionales, barcode formato. Lanza `FoodValidationError`. Documentado que cuando cambie la validación cliente, cambiar aquí también.
+- `functions/src/services/openfoodfacts.ts` — cliente del API OFF v2. `fetchFromOpenFoodFacts(barcode)` hace GET con User-Agent, timeout 8s via AbortController, `fields=` filter para no descargar 300+ campos. `mapOffProduct()` extrae name (es > default > en), nutriments obligatorios + opcionales, brand, imageUrl. `inferCategory()` mapea `categories_tags` a nuestras 7 categorías con regex ordenadas por especificidad.
+- `functions/src/api/lookupBarcode.ts` — handler callable (europe-west1, 256MiB, maxInstances 10, timeout 30s, CORS true). Auth check → validar barcode → check `productCache/{barcode}` → si miss OFF API live → validar server-side el resultado → cachear con serverTimestamp + firstLookupBy uid. Logging structured con uid+barcode.
+
+*Cliente (JS, web):*
+- `src/firebase.js` — `getFunctions(app, 'europe-west1')` añadido como export. `connectFunctionsEmulator` condicional bajo `import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true'` para dev local con emuladores.
+- `src/services/barcode.js` — NUEVO. Wrapper sobre httpsCallable. Session cache en Map() con TTL 10min para re-escaneos. Map de errores servidor→cliente con mensajes en español. Mismo patrón de "único sitio autorizado a llamar a la Function" que `services/foods.js` para custom foods.
+- `src/components/BarcodeScanner.jsx` — NUEVO. Full-screen overlay z-60. **Import dinámico** de `@zxing/browser` (lazy, chunk separado 412 KB verificado en build). `BrowserMultiFormatReader.decodeFromVideoDevice` con callback. Maneja permisos (NotAllowedError/NotFoundError/NotReadableError) con UI de error. Overlay con marco cyan + corner markers + scan line animada. Cleanup del `controls` en unmount para no dejar MediaStream vivos.
+- `src/components/CustomFoodModal.jsx` — extendido con: source picker top (barcode/foto/manual) solo en modo create, loading state del lookup, notice panel (info cyan / warn amber), fields nuevos `brand` (editable) y `barcode` (badge read-only con "Quitar"), handler `handleBarcodeDetected` que rellena el form, `SourceButton` subcomponente, BarcodeScanner montado como sibling del panel modal (fragment root). En NOT_FOUND, pre-rellena solo el barcode detectado y muestra notice amber.
+
+*Deps instaladas:*
+- Root: `@zxing/browser` (dependency), `firebase-tools` (devDep, para deploys locales).
+- Functions: `firebase-admin` ^12.7, `firebase-functions` ^6.1.1, `typescript` ^5.6.
+
+*Docs:*
+- `PROJECT_PLAN.md` — Fase 2 marcada en su mayoría como ☑, con notas de lo pendiente (C2.9 manejo de errores parcial, C2.10 cost monitoring, despliegue efectivo). Añadido bloque "Despliegue pendiente" con los comandos que Igor tiene que ejecutar.
+
+**Por qué así**:
+- **Functions Gen 2 + callable**: `onCall` v2 me da `context.auth` ya verificado sin parsear tokens manualmente, CORS built-in, y el cliente del lado web usa `httpsCallable(functions, 'lookupBarcode')` que gestiona el token automáticamente. Bastante menos fricción que hacerlo con endpoints HTTP.
+- **Validación server-side duplicada, no compartida**: el cliente es JS y las Functions TS. Podría haber puesto la validación en un package compartido, pero para 80 líneas no merece la pena el setup. Dejo comentario estricto de "mantenerlas iguales" y pendiente el test coherencia en F0.3 (Vitest).
+- **Región europe-west1**: Igor desde España → latencia OFF API + Firestore mínima. Si un día añadimos usuarios en América cambiamos a multi-region o duplicamos.
+- **Cache compartida `productCache`** (no por-usuario): un producto es un producto. Si Igor escanea Pan Bimbo y mañana otro usuario lo escanea, deben obtener el mismo resultado. Además, cuando la base crezca, este caché se convierte en un mini-mirror propio gratis.
+- **Lazy-load de @zxing/browser**: son 150 KB de runtime + internals → ~400 KB gzipeados. Inflar el bundle inicial con eso por un usuario que puede no usar barcode nunca es caro. Dynamic import los mete en un chunk separado que solo se descarga al abrir el scanner por primera vez.
+- **Source picker con 3 botones en vez de un flujo wizard**: el usuario ve de inmediato las opciones disponibles. La opción "Foto" queda visible con "Próximamente" para anticipar la feature de Fase 3 y no desaparecer cuando aparezca — reduce la sorpresa futura.
+- **En NOT_FOUND pre-rellenar el barcode escaneado**: sutil pero importante. El usuario ya hizo el esfuerzo de apuntar la cámara al código; si se lo tiramos entero pierde confianza en la feature. Preservando el barcode, cuando guarde el producto a mano queda enlazado al código — y la próxima vez que lo escanee, estará en session cache o productCache.
+- **`SourceButton` subcomponent**: código limpio y evita 3 bloques repetidos de 15 líneas cada uno. Over-engineering no, abstracción justa.
+- **`entitlements.barcodeScan` gate**: en `useEntitlements` ya estaba declarada desde C1.8, hoy la conecto al source picker. En dev está a `true`, cuando llegue Stripe estará gateada detrás de premium.
+
+**Notas / deuda**:
+- ⏳ **Despliegue efectivo**: yo no puedo ejecutar `firebase login && firebase deploy` porque requiere auth interactiva de Google del usuario. Igor tiene que hacerlo desde su máquina. Hasta entonces, el frontend compila pero `lookupBarcode` fallará con `functions/internal` porque apunta a un endpoint que no existe todavía. La sesión cache y la UI funcionan, pero el lookup real necesita deploy.
+- ⏳ **Emuladores locales**: documentado en `src/firebase.js` cómo activarlos con `VITE_USE_FIREBASE_EMULATOR=true`. Útil para probar sin deploy. Requiere `firebase emulators:start` en otra terminal.
+- ⏳ **Rate limiting**: no añadí rate limit explícito porque el cache de sesión + productCache hacen que el coste máximo sea "N barcodes únicos ever". Si un usuario malicioso escanea 10000 barcodes únicos distintos para quemar coste, aún así hablamos de céntimos con el pricing actual. Revisar cuando tengamos usuarios reales.
+- ⏳ **Budget alerts** (C2.10): pendiente de configurar en consola Firebase → Settings → Budget & alerts. Recomiendo 5€/mes inicial.
+- ⏳ **Error handling completo** (C2.9): falta el retry automático en error transitorio y la persistencia de "scan pendiente" para offline. Siguiente iteración.
+- ⏳ **Tests Functions**: el plan decía que F0.3 incluiría Vitest para el cliente. Las Functions merecen sus propios tests unitarios (mappers, validación, inference de categoría). Añadir a F0 cuando llegue.
+- ⚠ **Lint Functions diferido**: deliberadamente no puse ESLint en functions/ para no complicar el setup inicial. Build pasa solo con tsc strict. Añadir lint cuando haya más de un handler.
+- ⚠ **Warning CSS `file:line` en el build de Vite**: cosmético, no bloquea. Proviene de una clase Tailwind generada dinámicamente (no aparece en código fuente). Ignorado.
+- Próxima sesión: tras deploy, **Fase 3** (OCR de etiqueta vía Claude Haiku) o pulir Fase 2 con el resto de C2.9/C2.10.
+
+---
+
 ## 2026-04-10 — Tooling: sub-agentes Claude Code + Playwright MCP + bloqueantes resueltos
 
 **Contexto**: Igor activó plan Blaze de Firebase y obtuvo API key de Anthropic, desbloqueando Fase 2+ y Fase 3. También pidió auto-configurar sub-agentes y MCPs útiles para el flujo de desarrollo.

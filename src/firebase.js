@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDsJpHK1lQ0n9r54yvUjcI6dQ_Nk-Si_BE",
@@ -18,3 +19,14 @@ const app = initializeApp(firebaseConfig);
 // Initialize Services
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// Functions: región europe-west1 (menor latencia desde España, ver firebase.json)
+export const functions = getFunctions(app, 'europe-west1');
+
+// Emulador: activar vía env var VITE_USE_FIREBASE_EMULATOR=true para dev local
+// Arrancar previamente: `firebase emulators:start --only functions,firestore,auth`
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+    // eslint-disable-next-line no-console
+    console.log('🔧 Connecting to Firebase Functions emulator at localhost:5001');
+    connectFunctionsEmulator(functions, 'localhost', 5001);
+}

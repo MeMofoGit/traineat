@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+    X, Save, ChevronDown, ChevronUp, AlertCircle,
+    Barcode, Camera, PenLine, Loader2, Info, Lock,
+} from 'lucide-react';
 import { FOOD_CATEGORIES } from '../data/food_database';
 import { usePlan } from '../hooks/usePlan';
+import { lookupBarcode, BarcodeErrors } from '../services/barcode';
+import BarcodeScanner from './BarcodeScanner';
+import { useEntitlements } from '../hooks/useEntitlements';
 
 /**
  * Modal de creación / edición de un custom food (Mi Nevera).
@@ -19,11 +25,17 @@ import { usePlan } from '../hooks/usePlan';
  */
 export default function CustomFoodModal({ isOpen, onClose, mode = 'create', initialFood = null, onSaved }) {
     const { addCustomFood, editCustomFood } = usePlan();
+    const entitlements = useEntitlements();
 
     const [form, setForm] = useState(() => buildEmptyForm());
     const [showOptional, setShowOptional] = useState(false);
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
+
+    // Barcode / lookup state
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [lookupLoading, setLookupLoading] = useState(false);
+    const [lookupNotice, setLookupNotice] = useState(null); // {kind: 'info'|'warn', text}
 
     const firstInputRef = useRef(null);
 
@@ -42,10 +54,61 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                 setShowOptional(false);
             }
             setError(null);
+            setLookupNotice(null);
+            setLookupLoading(false);
             // autofocus first field
             setTimeout(() => firstInputRef.current?.focus(), 50);
         }
     }, [isOpen, mode, initialFood]);
+
+    // --- Barcode lookup flow ---
+    const handleBarcodeDetected = useCallback(async (code) => {
+        setScannerOpen(false);
+        setLookupNotice(null);
+        setError(null);
+        setLookupLoading(true);
+        try {
+            const { food, source } = await lookupBarcode(code);
+            // Rellenar form con el resultado. Abrimos opcionales si vienen.
+            setForm(foodToForm(food));
+            const m = food.macros || {};
+            if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
+                setShowOptional(true);
+            }
+            setLookupNotice({
+                kind: 'info',
+                text: source === 'session_cache'
+                    ? 'Producto recuperado de caché local — revisa los datos y confirma.'
+                    : source === 'cache'
+                        ? 'Producto encontrado (ya consultado antes). Revisa los datos y confirma.'
+                        : 'Producto encontrado en OpenFoodFacts. Revisa los datos y confirma.',
+            });
+        } catch (err) {
+            if (err?.code === BarcodeErrors.NOT_FOUND) {
+                setLookupNotice({
+                    kind: 'warn',
+                    text: 'No encontramos este producto en la base de datos. Rellena los campos a mano desde la etiqueta.',
+                });
+                // Pre-rellenar solo el barcode detectado para que el usuario
+                // no pierda el dato escaneado — se guardará cuando confirme.
+                setForm(prev => ({ ...prev, barcode: code }));
+            } else if (err?.code === BarcodeErrors.UNAVAILABLE) {
+                setLookupNotice({
+                    kind: 'warn',
+                    text: err.message || 'Servicio no disponible. Prueba en unos minutos o añade el producto a mano.',
+                });
+            } else if (err?.code === BarcodeErrors.INVALID) {
+                setLookupNotice({
+                    kind: 'warn',
+                    text: 'El código leído no tiene formato válido. Vuelve a intentarlo.',
+                });
+            } else {
+                setError(err?.message || 'Error al consultar el código');
+            }
+        } finally {
+            setLookupLoading(false);
+        }
+    }, []);
 
     // ESC para cerrar
     useEffect(() => {
@@ -106,6 +169,7 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
     }
 
     return (
+        <>
         <div
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
             onClick={handleCloseAttempt}
@@ -136,6 +200,60 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
 
                 {/* Body scrollable */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                    {/* Source picker: barcode / foto / manual (solo en modo create) */}
+                    {mode === 'create' && (
+                        <div className="grid grid-cols-3 gap-2">
+                            <SourceButton
+                                icon={<Barcode size={18} />}
+                                label="Código"
+                                sublabel="Escanear"
+                                color="cyan"
+                                disabled={lookupLoading || !entitlements.barcodeScan}
+                                locked={!entitlements.barcodeScan}
+                                onClick={() => setScannerOpen(true)}
+                            />
+                            <SourceButton
+                                icon={<Camera size={18} />}
+                                label="Foto"
+                                sublabel="Próximamente"
+                                color="amber"
+                                disabled
+                                comingSoon
+                                onClick={() => { /* Fase 3 */ }}
+                            />
+                            <SourceButton
+                                icon={<PenLine size={18} />}
+                                label="Manual"
+                                sublabel="Formulario"
+                                color="blue"
+                                active
+                                onClick={() => setLookupNotice(null)}
+                            />
+                        </div>
+                    )}
+
+                    {/* Loading del lookup */}
+                    {lookupLoading && (
+                        <div className="flex items-center gap-3 p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-xs text-slate-300">
+                            <Loader2 size={14} className="animate-spin text-cyan-400 shrink-0" />
+                            <span>Buscando producto en OpenFoodFacts…</span>
+                        </div>
+                    )}
+
+                    {/* Notice del lookup (éxito / not found / error) */}
+                    {lookupNotice && (
+                        <div
+                            className={`flex items-start gap-2 p-3 rounded-xl border text-xs ${
+                                lookupNotice.kind === 'warn'
+                                    ? 'bg-amber-950/30 border-amber-900/50 text-amber-200'
+                                    : 'bg-cyan-950/30 border-cyan-900/50 text-cyan-200'
+                            }`}
+                        >
+                            <Info size={14} className="shrink-0 mt-0.5" />
+                            <span>{lookupNotice.text}</span>
+                        </div>
+                    )}
+
                     {/* Identidad */}
                     <Section title="Identidad">
                         <Field label="Nombre del producto *">
@@ -149,6 +267,33 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
                             />
                         </Field>
+
+                        <Field label="Marca">
+                            <input
+                                type="text"
+                                value={form.brand}
+                                onChange={e => setField('brand', e.target.value)}
+                                placeholder="Ej. Bimbo (opcional)"
+                                maxLength={100}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
+                            />
+                        </Field>
+
+                        {form.barcode && (
+                            <div className="flex items-center justify-between gap-2 p-2 bg-slate-950 border border-slate-800 rounded-lg">
+                                <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
+                                    <Barcode size={12} className="shrink-0 text-cyan-400" />
+                                    <span className="font-mono truncate">{form.barcode}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setField('barcode', '')}
+                                    className="shrink-0 text-[10px] text-slate-500 hover:text-rose-400 font-bold uppercase tracking-wider"
+                                >
+                                    Quitar
+                                </button>
+                            </div>
+                        )}
 
                         <Field label="Categoría *">
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -264,12 +409,51 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                 </footer>
             </div>
         </div>
+
+        {/* Scanner fuera del panel del modal porque va full-screen encima (z-60) */}
+        <BarcodeScanner
+            isOpen={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onDetected={handleBarcodeDetected}
+        />
+        </>
     );
 }
 
 // ----------------------------------------------------------------------------
 // Subcomponentes
 // ----------------------------------------------------------------------------
+
+function SourceButton({ icon, label, sublabel, color, active, disabled, locked, comingSoon, onClick }) {
+    const colorClasses = {
+        cyan: active
+            ? 'bg-cyan-900/40 border-cyan-600 text-cyan-300'
+            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-cyan-700 hover:text-cyan-300',
+        amber: active
+            ? 'bg-amber-900/40 border-amber-600 text-amber-300'
+            : 'bg-slate-950 border-slate-800 text-slate-400',
+        blue: active
+            ? 'bg-blue-900/40 border-blue-600 text-blue-300'
+            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-blue-700 hover:text-blue-300',
+    };
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`p-3 rounded-xl border text-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center gap-1 ${colorClasses[color] || colorClasses.blue}`}
+        >
+            <div className="flex items-center gap-1">
+                {icon}
+                {locked && <Lock size={10} />}
+            </div>
+            <div className="text-[11px] font-bold leading-none mt-1">{label}</div>
+            <div className="text-[9px] leading-none opacity-70">
+                {comingSoon ? 'Próximamente' : sublabel}
+            </div>
+        </button>
+    );
+}
 
 function Section({ title, children }) {
     return (
@@ -327,6 +511,8 @@ function buildEmptyForm() {
         category: 'protein',
         defaultUnit: 'g',
         servingSize: '100',
+        barcode: '',
+        brand: '',
         macros: {
             calories: '',
             protein: '',
@@ -347,6 +533,8 @@ function foodToForm(food) {
         category: food.category || 'protein',
         defaultUnit: food.defaultUnit || 'g',
         servingSize: food.servingSize != null ? String(food.servingSize) : '100',
+        barcode: food.barcode || '',
+        brand: food.brand || '',
         macros: {
             calories: m.calories != null ? String(m.calories) : '',
             protein: m.protein != null ? String(m.protein) : '',
@@ -374,13 +562,21 @@ function formToFood(form) {
     if (m.saturated !== '' && m.saturated != null) macros.saturated = parseNum(m.saturated);
     if (m.salt !== '' && m.salt != null) macros.salt = parseNum(m.salt);
 
-    return {
+    const out = {
         name: form.name,
         category: form.category,
         defaultUnit: form.defaultUnit,
         servingSize: parseNum(form.servingSize),
         macros,
     };
+    // Preservar barcode y brand si se rellenaron (OFF o manual)
+    if (form.barcode && String(form.barcode).trim()) {
+        out.barcode = String(form.barcode).trim();
+    }
+    if (form.brand && String(form.brand).trim()) {
+        out.brand = String(form.brand).trim();
+    }
+    return out;
 }
 
 function parseNum(v) {

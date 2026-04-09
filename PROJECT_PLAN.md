@@ -317,38 +317,50 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 *Bloqueante: Plan Blaze activado.*
 
 - ☑ **C2.0** Activar plan **Blaze** en consola Firebase. *Hecho 2026-04-10.*
-- ☐ **C2.1** `firebase init functions` con TypeScript. ESLint + Prettier en functions. Script `npm run deploy:functions`. Hello world deployado y testeado.
-- ☐ **C2.2** Estructura functions: `src/api/`, `src/services/`, `src/lib/`. Helpers compartidos (auth check, error handling, logging).
-- ☐ **C2.3a** **Validación server-side de customFood** en Function callable `validateCustomFood` o middleware compartido. Hoy la validación vive solo en cliente (`src/services/foods.js`); cuando haya Functions hay que duplicarla server-side y aplicarla en cualquier escritura a `users/{uid}/customFoods/*` (idealmente con Firestore Trigger `onWrite` que valide y rechace). Razón: las reglas Firestore no expresan validaciones complejas y la validación cliente puede saltarse trivialmente.
-- ☐ **C2.3** Function callable `lookupBarcode(code)`: 
-  - Valida barcode (formato EAN-13/UPC/EAN-8).
-  - Auth check obligatorio.
-  - Cadena: `productCache/{barcode}` → API OFF live → si 404 lanza `BARCODE_NOT_FOUND`.
-  - Mapper `offProductToCustomFoodShape(offProduct)` que normaliza (kJ→kcal, sodio→sal, etc.).
-  - En éxito desde API live: upsert en `productCache` para próxima vez.
-  - Logging: success/failure/source.
-- ☐ **C2.4** Reglas Firestore: añadir `productCache` (read auth, write false).
-- ☐ **C2.5** Cliente: dependencia `@zxing/browser`.
-- ☐ **C2.6** Componente `BarcodeScanner` lazy-loaded (`React.lazy`) con cámara.
-  - Permisos: pedir, manejar denegación con mensaje claro.
-  - Soporte EAN-13 (Europa), UPC, EAN-8.
-  - Indicador visual de escaneo activo.
-  - Timeout / cancelar.
-  - iOS Safari quirks: probar y documentar.
-- ☐ **C2.7** Integración en `CustomFoodModal`: nuevo paso/botón "Escanear código de barras".
-  - Pre-confirmación: "Encontramos 'Pan Bimbo Integral'. ¿Es este?" con todos los datos.
-  - Si NO → cae a OCR (Fase 3) o manual.
-  - Si SÍ → autofill formulario → pantalla de revisión → guardar.
-- ☐ **C2.8** Cache de scans recientes en SessionStorage del cliente para no re-llamar Function en re-escaneos accidentales.
-- ☐ **C2.9** Manejo de errores end-to-end:
-  - `BARCODE_NOT_FOUND` → propone OCR/manual.
-  - `UNAVAILABLE` (red caída, OFF caído) → propone OCR/manual + guarda intento para reintentar.
-  - Permiso cámara denegado → propone manual + instrucciones para activar.
-- ☐ **C2.10** Cost monitoring: budget alert en Firebase a 5€/mes inicial.
+- ☑ **C2.1** Estructura `functions/` TypeScript manual (equivalente a `firebase init functions`). Package.json con scripts build/serve/deploy/logs, tsconfig strict, Node 22, firebase-functions ^6.1 + firebase-admin ^12.7.
+- ☑ **C2.2** Estructura modular de functions:
+  - `src/index.ts` — entry, initializeApp + re-exports (cold-starts pequeños).
+  - `src/lib/` — auth, errors, barcode, foodValidation (reusables).
+  - `src/services/` — openfoodfacts (API client + mapper + inferencia de categoría).
+  - `src/api/` — handlers por función (`lookupBarcode.ts`).
+- ☑ **C2.3a** **Validación server-side de customFood** en `functions/src/lib/foodValidation.ts`. Replicada intencionalmente desde el cliente. Aplicada en `lookupBarcode` antes de escribir a `productCache` — protege contra datos incoherentes de OFF que envenenen la caché. Pendiente: aplicar también si en el futuro hay Functions que escriben a `users/{uid}/customFoods`.
+- ☑ **C2.3** Function callable `lookupBarcode(code)` (`europe-west1`, 256 MiB, maxInstances 10):
+  - Auth obligatoria vía `requireAuth(request)`.
+  - Validación barcode con regex `^\d{8,14}$`.
+  - Cadena: `productCache/{barcode}` → API OFF v2 live → mapper → validación server-side → upsert en cache.
+  - Mapper (`mapOffProduct`) extrae nombre (es > default > en), marca, imagen, nutriments, infiere categoría con regex sobre `categories_tags`.
+  - Errores con `details.code` estables (`BARCODE_NOT_FOUND`, `OFF_UNAVAILABLE`, `BARCODE_INVALID`, `NOT_AUTHENTICATED`).
+  - Logging structured con `firebase-functions/v2 logger` incluyendo uid y barcode.
+  - Timeout OFF 8s con AbortController.
+- ☑ **C2.4** `firestore.rules` NUEVO con multi-tenant estricto (`users/{uid}/**` solo owner), `offProducts`/`productCache` read auth write false, `_meta` read público. `firebase.json` y `.firebaserc` NUEVOS.
+- ☑ **C2.5** Cliente: `@zxing/browser` instalado como dep.
+- ☑ **C2.6** Componente `src/components/BarcodeScanner.jsx` con import dinámico de `@zxing/browser` (lazy → chunk separado 412 KB, confirmado en build).
+  - Permisos: detecta NotAllowedError, NotFoundError, NotReadableError con mensajes en español.
+  - Usa `decodeFromVideoDevice(undefined, …)` que selecciona cámara trasera por defecto en móvil.
+  - Overlay visual con marco cyan + corner markers + línea animada.
+  - Guarda `controls` para poder `.stop()` en unmount — previene leaks de stream.
+- ☑ **C2.7** Integración en `CustomFoodModal`:
+  - Source picker top (barcode / foto / manual) solo en modo create.
+  - Foto deshabilitada con "Próximamente" (Fase 3).
+  - Handler `handleBarcodeDetected` llama al servicio, rellena form, abre opcionales si vienen datos, muestra notice de éxito.
+  - En NOT_FOUND muestra notice amber y pre-rellena solo el barcode en el form, el usuario completa a mano.
+  - Notice con Info icon y colores por kind (info=cyan, warn=amber).
+  - Añadidos fields `brand` (input editable) y `barcode` (badge read-only con botón "Quitar").
+- ☑ **C2.8** Cache de sesión en `src/services/barcode.js` — Map en memoria con TTL 10 min, evita re-llamar Function en re-escaneos inmediatos. Eviction por TTL lazy, clearBarcodeSessionCache exportado para logout futuro.
+- ☐ **C2.9** Manejo de errores end-to-end: **parcialmente hecho** — NOT_FOUND, UNAVAILABLE, INVALID, permisos cámara, carga lazy fallida. Pendiente: reintento automático tras error transitorio, "guardar intento" para offline.
+- ☐ **C2.10** Cost monitoring: budget alert Firebase a 5€/mes. **Pendiente**: hacerlo desde consola Firebase (fuera de código).
+
+**Despliegue pendiente** (acción del usuario):
+1. `npm run build` dentro de `functions/` — ya verificado limpio.
+2. `firebase login` (si no lo ha hecho, interactivo).
+3. `firebase deploy --only firestore:rules,firestore:indexes` — despliega las reglas.
+4. `firebase deploy --only functions` — despliega `lookupBarcode`.
+5. (Opcional emulators) `firebase emulators:start --only functions,firestore,auth` + en el cliente `VITE_USE_FIREBASE_EMULATOR=true npm run dev`.
 
 **Notas Fase 2**:
-- Sin mirror todavía, depende del API live de OFF para la primera consulta de cada producto. Aceptable porque cada producto se cachea de por vida tras la primera vez.
-- El mirror nocturno llega en Fase 4. Justifica el orden: arrancar barebones, mejorar después.
+- Sin mirror todavía, depende del API live de OFF para la primera consulta de cada producto. Aceptable porque cada producto se cachea de por vida en `productCache` tras la primera vez.
+- El mirror nocturno llega en Fase 4. Arrancamos barebones, mejoramos después.
+- `lookupBarcode` no usa rate limiting explícito; la protección viene de `maxInstances: 10` + que cada producto se cachea tras la primera consulta (no hay forma de un user malicioso "quemar" coste llamando repetidamente al mismo barcode).
 
 ---
 
