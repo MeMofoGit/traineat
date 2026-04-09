@@ -368,6 +368,11 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 *Objetivo: usuario hace foto a etiqueta, recibe macros parseados, los revisa y confirma.*
 *Bloqueante: API key Anthropic.*
 
+> **Decisión UX (2026-04-10)**: cuando el flujo de barcode devuelve `BARCODE_NOT_FOUND`, la opción recomendada debe ser **"Foto de la etiqueta"** (no "manual"). El relleno manual queda como último recurso. Hoy el mensaje ya menciona que la foto está "muy pronto disponible"; al implementar Fase 3 hay que:
+> - Actualizar el texto del notice NOT_FOUND para decir "Haz una foto a la etiqueta" (sin el "próximamente").
+> - Destacar visualmente el botón "Foto" en el source picker cuando el notice NOT_FOUND esté activo (border amber animado o similar), guiando al usuario al siguiente paso natural.
+> - Considerar auto-enfocar / auto-scroll al botón Foto, o incluso auto-trigger el picker de imagen si la UX lo permite sin ser intrusivo.
+
 - ⊘ **C3.0** Obtener API key Anthropic. **Acción del usuario** (console.anthropic.com, separada de Claude MAX).
 - ☐ **C3.1** Function callable `ocrLabel({ imageBase64, hintCategory? })`:
   - Auth check.
@@ -409,6 +414,8 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 ### Fase 4 — OFF mirror nocturno
 *Objetivo: tener copia local de productos OFF, refrescada cada noche, para no depender del API live de OFF.*
 *La pieza más grande, pero independiente del usuario final.*
+
+> **Estado actual (2026-04-10)**: **NADA DE ESTO EXISTE AÚN**. Hoy `lookupBarcode` solo tiene el cache perezoso `productCache` (se puebla orgánicamente con escaneos reales) y llama al API live de OFF en cada miss. Lo que ves en Firestore bajo `productCache/` son únicamente los productos que alguien ya ha escaneado. Cuando se implemente esta fase, aparecerá una colección nueva `offProducts/` con ~30-80k productos españoles pre-cacheados y `lookupBarcode` la consultará antes que `productCache`.
 
 - ☐ **C4.1** Function scheduled `nightlyOFFSync` (`pubsub.schedule('0 3 * * *', timezone='Europe/Madrid')`).
   - **Generation 2** (necesaria por timeout largo: 1st gen = 9 min máx, 2nd gen = 60 min).

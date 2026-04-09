@@ -6,6 +6,26 @@ Bitácora de desarrollo. Lo más reciente arriba. Lee las últimas 3-5 entradas 
 
 ---
 
+## 2026-04-10 — Fix: form no se reseteaba entre escaneos + mensaje NOT_FOUND mejorado
+
+**Contexto**: Igor detectó dos cosas probando el barcode desde móvil. (1) Escaneo producto A → rellena form → escaneo producto B que no está en OFF → veo notice de NOT_FOUND pero los campos del producto A siguen ahí. (2) El mensaje de NOT_FOUND dice "rellena los campos a mano" como si fuese la opción principal, pero la opción natural debería ser "haz una foto" (OCR). Además, confusión arquitectónica: pensaba que ya había volcado diario de OFF cuando en realidad `productCache` es un cache perezoso que solo crece con escaneos reales.
+
+**Cambio**:
+- `src/components/CustomFoodModal.jsx` — `handleBarcodeDetected` ahora en cada rama de error llama explícitamente a `setForm(buildEmptyForm())` + `setShowOptional(false)` para no arrastrar estado del escaneo anterior. Solo en el caso `NOT_FOUND` preservamos el barcode detectado (`{ ...buildEmptyForm(), barcode: code }`), porque el código sí es información útil que el usuario escaneó. El mensaje NOT_FOUND reescrito a "Muy pronto podrás hacer una foto a la etiqueta para leerla automáticamente. De momento, rellena los campos a mano.", dejando sembrada la expectativa de Fase 3. Añadido TODO inline apuntando al comportamiento futuro.
+- `PROJECT_PLAN.md` — Fase 3: bloque destacado con decisión UX "al entrar en NOT_FOUND, la opción recomendada es Foto no Manual". Tareas concretas de qué hacer con el botón foto (destacar visualmente, auto-focus, posible auto-trigger) cuando se implemente. Fase 4: bloque destacado "**NADA DE ESTO EXISTE AÚN**" aclarando que hoy `productCache` es perezoso y `offProducts` todavía no existe.
+
+**Por qué así**:
+- **Reset total del form en todos los errores** (no solo NOT_FOUND): el merge selectivo del bug inicial pretendía "preservar lo que hubiera" pero en la práctica mezclaba datos de productos distintos. Mejor limpieza total + preservación explícita del único dato que sí queremos mantener (el barcode escaneado).
+- **Mensaje NOT_FOUND con "muy pronto"**: sienta la expectativa del usuario antes de que exista la feature. Cuando llegue Fase 3 y cambiemos el texto a "haz una foto", el usuario ya sabe que eso es lo que iba a pasar. Evita la sorpresa negativa del "ahora me sale un botón nuevo que no esperaba".
+- **Aviso visible en Fase 4 de PROJECT_PLAN**: la confusión de Igor era legítima, no estaba explicado en ningún lado claramente. Añadir el bloque `> Estado actual: NADA DE ESTO EXISTE AÚN` evita que vuelva a pasar al leer el plan.
+- **TODO inline en el código**: la decisión UX de Fase 3 queda dentro del handler donde se aplicará, no solo en PROJECT_PLAN. Así al implementar OCR, el autor se encuentra el TODO en el sitio exacto.
+
+**Notas / pendientes**:
+- La tarea de destacar el botón Foto cuando el notice NOT_FOUND esté activo queda anotada pero NO implementada (depende de tener Fase 3 con OCR real; antes de eso el botón seguirá deshabilitado como "Próximamente").
+- Decisión pendiente del usuario: **¿acelerar Fase 4 antes de Fase 3?**. La arquitectura actual funciona bien para 1-2 usuarios pero cada producto nuevo implica una llamada al API live de OFF. Con Fase 4 se pre-cachean 30-80k productos españoles y la dependencia de OFF en runtime desaparece para los populares.
+
+---
+
 ## 2026-04-10 — Fix: OFF v2 devuelve HTTP 404 en "not found", confundido con "servicio caído"
 
 **Contexto**: tras desplegar Fase 2, Igor probó escaneando un barcode (`9412181002307`, de Nueva Zelanda) y recibió "Servicio temporalmente no disponible". La UI y el transporte funcionaban — el fallo estaba en el handler interpretando la respuesta del API OFF.

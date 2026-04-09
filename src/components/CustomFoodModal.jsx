@@ -84,25 +84,37 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                         : 'Producto encontrado en OpenFoodFacts. Revisa los datos y confirma.',
             });
         } catch (err) {
+            // En todos los casos de error limpiamos el form para no dejar
+            // datos residuales de escaneos anteriores. Solo en NOT_FOUND
+            // preservamos el barcode detectado (lo que hizo el usuario aún
+            // sirve: escaneó, el código quedó guardado).
             if (err?.code === BarcodeErrors.NOT_FOUND) {
+                setForm({ ...buildEmptyForm(), barcode: code });
+                setShowOptional(false);
                 setLookupNotice({
                     kind: 'warn',
-                    text: 'No encontramos este producto en la base de datos. Rellena los campos a mano desde la etiqueta.',
+                    // TODO (Fase 3): cuando la opción "Foto" esté implementada,
+                    // destacar el botón foto como acción siguiente natural,
+                    // incluso auto-enfocándolo o animándolo para invitar al click.
+                    text: 'No encontramos este producto en la base de datos. Muy pronto podrás hacer una foto a la etiqueta para leerla automáticamente. De momento, rellena los campos a mano.',
                 });
-                // Pre-rellenar solo el barcode detectado para que el usuario
-                // no pierda el dato escaneado — se guardará cuando confirme.
-                setForm(prev => ({ ...prev, barcode: code }));
             } else if (err?.code === BarcodeErrors.UNAVAILABLE) {
+                setForm(buildEmptyForm());
+                setShowOptional(false);
                 setLookupNotice({
                     kind: 'warn',
                     text: err.message || 'Servicio no disponible. Prueba en unos minutos o añade el producto a mano.',
                 });
             } else if (err?.code === BarcodeErrors.INVALID) {
+                setForm(buildEmptyForm());
+                setShowOptional(false);
                 setLookupNotice({
                     kind: 'warn',
                     text: 'El código leído no tiene formato válido. Vuelve a intentarlo.',
                 });
             } else {
+                setForm(buildEmptyForm());
+                setShowOptional(false);
                 setError(err?.message || 'Error al consultar el código');
             }
         } finally {
