@@ -3,12 +3,19 @@ import { PLAN_DATA, GIF_MAP } from '../data/plan';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot, setDoc, collection, addDoc, query, orderBy, limit, getDoc, writeBatch } from 'firebase/firestore';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import {
+    subscribeCustomFoods,
+    createCustomFood as svcCreateCustomFood,
+    updateCustomFood as svcUpdateCustomFood,
+    deleteCustomFood as svcDeleteCustomFood,
+} from '../services/foods';
 
 const PlanContext = createContext();
 
 export function PlanProvider({ children }) {
     const [user, setUser] = useState(null);
     const [historyList, setHistoryList] = useState([]); // FROM SUBCOLLECTION
+    const [customFoods, setCustomFoods] = useState([]); // FROM SUBCOLLECTION users/{uid}/customFoods
 
     // PLAN STATE (Active Routine, Diet, Settings - NO HISTORY)
     const [planData, setPlanData] = useState(() => {
@@ -160,9 +167,20 @@ export function PlanProvider({ children }) {
                     console.log(`📜 Loaded ${loadedHistory.length} history items`);
                 });
 
+                // C. CUSTOM FOODS LISTENER (users/{uid}/customFoods)
+                const customFoodsUnsub = subscribeCustomFoods(
+                    uid,
+                    (foods) => {
+                        setCustomFoods(foods);
+                        console.log(`🥫 Loaded ${foods.length} custom foods`);
+                    },
+                    (err) => console.error('customFoods subscription error', err)
+                );
+
                 return () => {
                     planUnsub();
                     historyUnsub();
+                    customFoodsUnsub();
                 };
             }
         });
@@ -610,9 +628,31 @@ export function PlanProvider({ children }) {
         });
     };
 
+    // --- CUSTOM FOODS ACTIONS ---
+    // Wrappers finos sobre src/services/foods.js. La suscripción onSnapshot
+    // mantiene `customFoods` sincronizado solo, no necesitamos updates locales.
+    const addCustomFood = async (food) => {
+        if (!user) throw new Error('No hay usuario autenticado');
+        return svcCreateCustomFood(user.uid, food);
+    };
+
+    const editCustomFood = async (foodId, patch) => {
+        if (!user) throw new Error('No hay usuario autenticado');
+        return svcUpdateCustomFood(user.uid, foodId, patch);
+    };
+
+    const removeCustomFood = async (foodId) => {
+        if (!user) throw new Error('No hay usuario autenticado');
+        return svcDeleteCustomFood(user.uid, foodId);
+    };
+
     return (
         <PlanContext.Provider value={{
             plan: { ...planData, history: historyList }, // MERGE history back in for consumers
+            customFoods,
+            addCustomFood,
+            editCustomFood,
+            removeCustomFood,
             updateMealOption,
             addMealOption,
             deleteMealOption,

@@ -1,3 +1,49 @@
+/**
+ * @typedef {Object} FoodMacros
+ * Macros nutricionales. Las cantidades se entienden POR `servingSize` unidades
+ * de `defaultUnit` (típicamente por 100 g, 100 ml, o por 1 pieza si `defaultUnit === 'pz'`).
+ *
+ * @property {number} calories  - kcal (REQUERIDO)
+ * @property {number} protein   - gramos de proteína (REQUERIDO)
+ * @property {number} carbs     - gramos de hidratos de carbono (REQUERIDO)
+ * @property {number} fat       - gramos de grasas totales (REQUERIDO)
+ * @property {number} [sugars]      - gramos de azúcares (subconjunto de carbs). Opcional, viene en etiquetas EU.
+ * @property {number} [fiber]       - gramos de fibra. Opcional.
+ * @property {number} [saturated]   - gramos de grasas saturadas (subconjunto de fat). Opcional.
+ * @property {number} [salt]        - gramos de sal. Opcional. Si la etiqueta da sodio, convertir: sal = sodio * 2.5.
+ */
+
+/**
+ * @typedef {Object} Food
+ * Shape unificado para alimentos predefinidos (FOOD_DATABASE) y personalizados del usuario
+ * (Firestore: users/{uid}/customFoods/{foodId}). Los campos opcionales solo aparecen
+ * típicamente en customFoods que vienen de etiquetas (OCR / barcode / OFF mirror).
+ *
+ * @property {string} id          - Slug único. Predefinidos: literal corto (ej "chicken_breast").
+ *                                  Custom: `user_<slug>_<rand>` para evitar colisiones.
+ * @property {string} name        - Nombre legible mostrado al usuario.
+ * @property {string} category    - Una de FOOD_CATEGORIES (protein|carbs|fat|veggies|fruit|liquid|other).
+ * @property {('g'|'ml'|'pz'|'taza'|'cda')} defaultUnit - Unidad base.
+ * @property {FoodMacros} macros  - Valores nutricionales.
+ * @property {number} [servingSize=100]  - Tamaño de la porción a la que se refieren los macros.
+ *                                          Para 'g' y 'ml' suele ser 100. Para 'pz' suele ser 1.
+ * @property {('predefined'|'custom')} [source] - Origen. Si ausente, asumir 'predefined' (FOOD_DATABASE).
+ * @property {string} [barcode]   - EAN-13 / UPC. Solo en custom foods provenientes de barcode/OFF.
+ * @property {number} [createdAt] - Timestamp ms. Solo custom foods.
+ * @property {number} [updatedAt] - Timestamp ms. Solo custom foods.
+ *
+ * @example  // Predefinido (forma actual de FOOD_DATABASE — campos opcionales ausentes)
+ * { id: 'chicken_breast', name: 'Pechuga de Pollo', category: 'protein',
+ *   defaultUnit: 'g', macros: { protein: 23, carbs: 0, fat: 1, calories: 106 } }
+ *
+ * @example  // Custom completo (vendría de OCR/barcode con etiqueta detallada)
+ * { id: 'user_pan_bimbo_xyz', name: 'Pan Bimbo Integral', category: 'carbs',
+ *   defaultUnit: 'g', servingSize: 100, source: 'custom', barcode: '8410376012345',
+ *   macros: { calories: 247, protein: 9.2, carbs: 41.5, sugars: 3.8, fiber: 6.1,
+ *             fat: 3.5, saturated: 0.7, salt: 1.1 },
+ *   createdAt: 1712664000000 }
+ */
+
 export const FOOD_CATEGORIES = {
     PROTEIN: { id: 'protein', label: 'Proteína', icon: '🥩', color: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-800' },
     CARBS: { id: 'carbs', label: 'Carbohidratos', icon: '🍚', color: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-800' },

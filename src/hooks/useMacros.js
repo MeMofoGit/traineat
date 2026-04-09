@@ -1,7 +1,24 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { FOOD_DATABASE } from '../data/food_database';
 import { PLAN_DATA } from '../data/plan';
 import { usePlan } from './usePlan';
+
+/**
+ * Lookup unificado: busca un food por id primero en FOOD_DATABASE (alimentos
+ * predefinidos) y después en el mapa de customFoods del usuario. Devuelve
+ * `null` si no existe en ninguna fuente (caso "orphan": item de comida
+ * apuntando a un producto borrado).
+ *
+ * @param {string} foodId
+ * @param {Record<string, import('../data/food_database.js').Food>} customFoodsMap
+ * @returns {import('../data/food_database.js').Food | null}
+ */
+export function findFood(foodId, customFoodsMap = {}) {
+    if (!foodId) return null;
+    const predefined = FOOD_DATABASE.find(f => f.id === foodId);
+    if (predefined) return predefined;
+    return customFoodsMap[foodId] || null;
+}
 
 /**
  * HELPER FUNCTIONS (Hoisted / Defined before use)
@@ -60,44 +77,73 @@ function getTargetMacros(calories, weight, isTrainingDay) {
 }
 
 // 2. Feature: Item Macros
-function calculateItemMacros(item) {
-    const food = FOOD_DATABASE.find(f => f.id === item.foodId);
-    if (!food || !food.macros) return { protein: 0, carbs: 0, fat: 0, calories: 0 };
+//
+// Helper puro: busca el food (predefinido o custom) y calcula los macros
+// del item según `quantity`. Soporta servingSize variable: para 'g'/'ml'
+// el ratio es qty/servingSize (default 100). Para otras unidades el ratio
+// es qty/servingSize (default 1) — ej. cereales con servingSize=30 g.
+//
+// Devuelve adicionalmente `orphan: true` si el foodId no existe en ninguna
+// fuente, para que la UI pueda avisar al usuario sin reventar el cálculo.
+function calculateItemMacrosPure(item, customFoodsMap = {}) {
+    const food = findFood(item.foodId, customFoodsMap);
+    if (!food || !food.macros) {
+        return { protein: 0, carbs: 0, fat: 0, calories: 0, orphan: true };
+    }
 
     const qty = parseFloat(item.quantity) || 0;
-    let ratio = 0;
-    if (food.defaultUnit === 'g' || food.defaultUnit === 'ml') {
-        ratio = qty / 100;
-    } else {
-        ratio = qty; // assumed pieces
-    }
+    const isWeightVolume = food.defaultUnit === 'g' || food.defaultUnit === 'ml';
+    const servingSize = food.servingSize ?? (isWeightVolume ? 100 : 1);
+    const ratio = qty / servingSize;
 
     return {
         protein: Math.round(food.macros.protein * ratio),
         carbs: Math.round(food.macros.carbs * ratio),
         fat: Math.round(food.macros.fat * ratio),
-        calories: Math.round(food.macros.calories * ratio)
+        calories: Math.round(food.macros.calories * ratio),
     };
 }
 
-function sumMacros(items) {
+function sumMacrosPure(items, customFoodsMap = {}) {
     if (!items) return { protein: 0, carbs: 0, fat: 0, calories: 0 };
     return items.reduce((acc, item) => {
-        const m = calculateItemMacros(item);
+        const m = calculateItemMacrosPure(item, customFoodsMap);
         return {
             protein: acc.protein + m.protein,
             carbs: acc.carbs + m.carbs,
             fat: acc.fat + m.fat,
-            calories: acc.calories + m.calories
+            calories: acc.calories + m.calories,
         };
     }, { protein: 0, carbs: 0, fat: 0, calories: 0 });
 }
 
 /**
  * Hook to calculate macros for a list of items or the entire day.
+ *
+ * Las funciones expuestas (`calculateItemMacros`, `sumMacros`) son
+ * conscientes del usuario actual: tienen lookup en FOOD_DATABASE +
+ * los customFoods del usuario. Items que apunten a foods inexistentes
+ * devuelven `orphan: true` para que la UI pueda marcarlos.
  */
 export function useMacros(isTrainingDay = true) {
-    const { plan } = usePlan();
+    const { plan, customFoods } = usePlan();
+
+    // Mapa { foodId -> Food } memoizado a partir del array que viene del context.
+    const customFoodsMap = useMemo(() => {
+        const map = {};
+        for (const f of customFoods || []) map[f.id] = f;
+        return map;
+    }, [customFoods]);
+
+    // Versiones bound al mapa actual. Estables salvo que cambien los customFoods.
+    const calculateItemMacros = useCallback(
+        (item) => calculateItemMacrosPure(item, customFoodsMap),
+        [customFoodsMap]
+    );
+    const sumMacros = useCallback(
+        (items) => sumMacrosPure(items, customFoodsMap),
+        [customFoodsMap]
+    );
 
     // 1. Calculate TDEE & Targets (Moved inputs to useMemo for efficiency)
 
@@ -145,7 +191,7 @@ export function useMacros(isTrainingDay = true) {
                 const option = meal.options?.[activeIndex];
 
                 if (option && option.items) {
-                    const mealMacros = sumMacros(option.items);
+                    const mealMacros = sumMacrosPure(option.items, customFoodsMap);
                     return {
                         calories: acc.calories + mealMacros.calories,
                         protein: acc.protein + mealMacros.protein,
@@ -155,7 +201,7 @@ export function useMacros(isTrainingDay = true) {
                 }
                 return acc;
             }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
-    }, [plan.schedule, plan.meals, sumMacros]);
+    }, [plan.schedule, plan.meals, customFoodsMap]);
 
 
     return {

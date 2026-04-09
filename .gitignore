@@ -12,9 +12,18 @@ dist
 dist-ssr
 *.local
 
-# Local tooling state
-.agent
-.claude
+# Otras herramientas (Cursor/Windsurf rules)
+.agent/
+
+# Claude Code: nos interesa commitear .claude/agents/ y .mcp.json,
+# pero NO los settings personales del usuario.
+.claude/settings.local.json
+.claude/cache/
+
+# Firebase Functions secrets (cuando arranque Fase 2)
+functions/.env
+functions/.env.local
+functions/.runtimeconfig.json
 
 # Editor directories and files
 .vscode/*

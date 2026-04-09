@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Diet from './pages/Diet';
 import Training from './pages/Training';
 import Profile from './pages/Profile';
+import Fridge from './pages/Fridge';
 import Layout from './components/Layout';
 
 import { PlanProvider } from './hooks/usePlan';
@@ -16,6 +17,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="diet" element={<Diet />} />
+            <Route path="fridge" element={<Fridge />} />
             <Route path="training" element={<Training />} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/" replace />} />

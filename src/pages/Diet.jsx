@@ -1,10 +1,17 @@
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { usePlan } from '../hooks/usePlan';
 import { useMacros } from '../hooks/useMacros';
-import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy } from 'lucide-react';
+import { useEntitlements } from '../hooks/useEntitlements';
+import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, Sparkles, Lock, Refrigerator } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
+import CustomFoodModal from '../components/CustomFoodModal';
 
 function StructuredMealEditor({ initialItems, onSave, onCancel }) {
+    const { customFoods } = usePlan();
+    const entitlements = useEntitlements();
+    const canCreateCustom = entitlements.customFoods;
+
     // If no structured items, try to parse or start empty
     const [items, setItems] = useState(initialItems || []);
     const [isAdding, setIsAdding] = useState(false);
@@ -15,13 +22,21 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const [qty, setQty] = useState('');
     const [unit, setUnit] = useState('g');
 
-    const availableFoods = useMemo(() =>
-        FOOD_DATABASE.filter(f => f.category === selectedCat)
-        , [selectedCat]);
+    // CustomFood modal
+    const [fridgeModalOpen, setFridgeModalOpen] = useState(false);
+
+    // Disponibles = predefinidos + custom foods del usuario, filtrados por categoría.
+    // Custom foods van marcados con `source === 'custom'` para diferenciarlos en el select.
+    const availableFoods = useMemo(() => {
+        const predef = FOOD_DATABASE.filter(f => f.category === selectedCat);
+        const custom = (customFoods || []).filter(f => f.category === selectedCat);
+        return [...custom, ...predef]; // custom arriba para visibilidad
+    }, [selectedCat, customFoods]);
 
     const handleAddItem = () => {
         if (!selectedFoodId || !qty) return;
-        const food = FOOD_DATABASE.find(f => f.id === selectedFoodId);
+        const food = availableFoods.find(f => f.id === selectedFoodId)
+            || FOOD_DATABASE.find(f => f.id === selectedFoodId);
 
         setItems([...items, {
             foodId: selectedFoodId,
@@ -36,6 +51,17 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
         setQty('');
         // setUnit('g'); // Keep unit for speed
         setIsAdding(false);
+    };
+
+    // Cuando el usuario crea un producto desde el modal: pre-seleccionarlo
+    // y rellenar unidad por defecto del producto.
+    const handleCustomFoodCreated = (food) => {
+        if (!food) return;
+        setSelectedCat(food.category);
+        setSelectedFoodId(food.id);
+        setUnit(food.defaultUnit || 'g');
+        // Pre-rellenar qty con servingSize si está vacío, para acelerar
+        if (!qty) setQty(String(food.servingSize ?? (food.defaultUnit === 'g' || food.defaultUnit === 'ml' ? 100 : 1)));
     };
 
     const handleRemoveItem = (index) => {
@@ -88,21 +114,57 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
                         ))}
                     </div>
 
-                    {/* Food Selector */}
-                    <select
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white outline-none focus:border-blue-500"
-                        value={selectedFoodId}
-                        onChange={e => {
-                            setSelectedFoodId(e.target.value);
-                            const f = FOOD_DATABASE.find(x => x.id === e.target.value);
-                            if (f) setUnit(f.defaultUnit);
-                        }}
-                    >
-                        <option value="">-- Selecciona Alimento --</option>
-                        {availableFoods.map(f => (
-                            <option key={f.id} value={f.id}>{f.name}</option>
-                        ))}
-                    </select>
+                    {/* Food Selector + botón crear desde Mi Nevera */}
+                    <div className="flex gap-2">
+                        <select
+                            className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white outline-none focus:border-blue-500"
+                            value={selectedFoodId}
+                            onChange={e => {
+                                setSelectedFoodId(e.target.value);
+                                const f = availableFoods.find(x => x.id === e.target.value);
+                                if (f) setUnit(f.defaultUnit);
+                            }}
+                        >
+                            <option value="">-- Selecciona Alimento --</option>
+                            {availableFoods.some(f => f.source === 'custom') && (
+                                <optgroup label="🧊 Mi Nevera">
+                                    {availableFoods
+                                        .filter(f => f.source === 'custom')
+                                        .map(f => (
+                                            <option key={f.id} value={f.id}>{f.name}</option>
+                                        ))}
+                                </optgroup>
+                            )}
+                            <optgroup label="Base de datos">
+                                {availableFoods
+                                    .filter(f => f.source !== 'custom')
+                                    .map(f => (
+                                        <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                            </optgroup>
+                        </select>
+                        {canCreateCustom ? (
+                            <button
+                                type="button"
+                                onClick={() => setFridgeModalOpen(true)}
+                                className="shrink-0 px-3 bg-cyan-900/30 border border-cyan-800 text-cyan-400 hover:bg-cyan-900/50 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                                title="Crear nuevo producto en Mi Nevera"
+                            >
+                                <Sparkles size={12} />
+                                Nuevo
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled
+                                className="shrink-0 px-3 bg-slate-800 border border-slate-700 text-slate-500 rounded-lg text-xs font-bold flex items-center gap-1 cursor-not-allowed"
+                                title="Función Premium"
+                            >
+                                <Lock size={12} />
+                                Premium
+                            </button>
+                        )}
+                    </div>
 
                     {/* Qty & Unit */}
                     <div className="flex gap-2">
@@ -148,6 +210,17 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
                     Guardar Cambios
                 </button>
             </div>
+
+            {/* Modal Mi Nevera (crear producto desde el editor) */}
+            <CustomFoodModal
+                isOpen={fridgeModalOpen}
+                onClose={() => setFridgeModalOpen(false)}
+                mode="create"
+                onSaved={(food) => {
+                    handleCustomFoodCreated(food);
+                    setIsAdding(true); // Asegurar que el editor de item está abierto
+                }}
+            />
         </div>
     );
 }
@@ -399,14 +472,35 @@ export default function Diet() {
 
     return (
         <div className="p-6 space-y-6 pb-24">
-            <header className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-white">Tu Nutrición</h1>
-                <button
-                    onClick={() => setTrainingDay(!trainingDay)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${trainingDay ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
+            <header className="space-y-3">
+                <div className="flex justify-between items-center">
+                    <h1 className="text-2xl font-bold text-white">Tu Nutrición</h1>
+                    <button
+                        onClick={() => setTrainingDay(!trainingDay)}
+                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${trainingDay ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
+                    >
+                        {trainingDay ? 'Modo: Entreno' : 'Modo: Descanso'}
+                    </button>
+                </div>
+                <Link
+                    to="/fridge"
+                    className="flex items-center justify-between gap-3 bg-cyan-900/20 hover:bg-cyan-900/30 border border-cyan-800/50 hover:border-cyan-700 rounded-xl p-3 transition-colors group"
                 >
-                    {trainingDay ? 'Modo: Entreno' : 'Modo: Descanso'}
-                </button>
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="bg-cyan-900/40 p-2 rounded-lg text-cyan-400 shrink-0">
+                            <Refrigerator size={16} />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-sm font-bold text-cyan-200">Mi Nevera</div>
+                            <div className="text-[10px] text-cyan-200/60">
+                                Gestiona tus productos personalizados
+                            </div>
+                        </div>
+                    </div>
+                    <span className="text-cyan-400 text-xs font-bold opacity-60 group-hover:opacity-100 transition-opacity shrink-0">
+                        Abrir →
+                    </span>
+                </Link>
             </header>
 
             <MacroSummary isTrainingDay={trainingDay} />
