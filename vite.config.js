@@ -1,24 +1,62 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import basicSsl from '@vitejs/plugin-basic-ssl'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import basicSsl from '@vitejs/plugin-basic-ssl';
+import { VitePWA } from 'vite-plugin-pwa';
 
-// https://vite.dev/config/
-//
-// HTTPS + host: true permite abrir la app desde móvil en la misma LAN
-// (imprescindible para que la cámara/getUserMedia funcione en móvil:
-// los navegadores móviles bloquean getUserMedia en contextos HTTP
-// no-localhost).
-//
-// basicSsl genera un certificado autofirmado al arrancar. La primera
-// vez que te conectes desde el móvil tendrás que aceptar el aviso de
-// "conexión no privada" (es seguro — es tu propio PC).
 export default defineConfig({
-  plugins: [
-    react(),
-    basicSsl(),
-  ],
-  server: {
-    host: true, // expone en 0.0.0.0, imprime la URL de LAN al arrancar
-    https: true,
-  },
-})
+    plugins: [
+        react(),
+        basicSsl(),
+        VitePWA({
+            registerType: 'autoUpdate',
+            includeAssets: ['vite.svg'],
+            manifest: {
+                name: 'TrainEat — Nutrición y Entrenamiento',
+                short_name: 'TrainEat',
+                description: 'Tu plan de nutrición y entrenamiento personalizado',
+                theme_color: '#0f172a',
+                background_color: '#020617',
+                display: 'standalone',
+                orientation: 'portrait',
+                start_url: '/',
+                scope: '/',
+                icons: [
+                    {
+                        src: '/icon-192.svg',
+                        sizes: '192x192',
+                        type: 'image/svg+xml',
+                    },
+                    {
+                        src: '/icon-512.svg',
+                        sizes: '512x512',
+                        type: 'image/svg+xml',
+                    },
+                    {
+                        src: '/icon-512.svg',
+                        sizes: '512x512',
+                        type: 'image/svg+xml',
+                        purpose: 'maskable',
+                    },
+                ],
+            },
+            workbox: {
+                globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,woff2}'],
+                runtimeCaching: [
+                    {
+                        // Cache de la API de Firebase (Firestore REST)
+                        urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
+                        handler: 'NetworkFirst',
+                        options: {
+                            cacheName: 'firestore-cache',
+                            expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 },
+                        },
+                    },
+                ],
+            },
+        }),
+    ],
+    server: {
+        host: true,
+        https: true,
+    },
+});
