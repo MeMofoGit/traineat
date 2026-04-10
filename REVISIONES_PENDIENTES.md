@@ -31,6 +31,21 @@ Al aplicar "Rellenar con Mi Nevera" en la merienda, el yogur griego genérico (1
 
 ---
 
+## "Ya lo hice" / "Saltar" no marca el día como completado (Fase 5b)
+
+**Reportado**: 2026-04-10
+**Prioridad**: MEDIA
+
+Cuando el usuario pulsa "Ya lo hice" o "Saltar" en el banner de entreno pendiente, el banner desaparece (decisión en localStorage) pero si navegas al día, sigue apareciendo como no entrenado — puedes iniciar sesión.
+
+### Mejora necesaria
+
+- [ ] Al pulsar **"Ya lo hice"**: crear entrada en `history` con `doneElsewhere: true`, `durationSeconds: 0`, `completedSets: {}`. Así el día aparece como completado visualmente y las estadísticas lo cuentan como "hecho" sin inflar métricas de rendimiento.
+- [ ] Al pulsar **"Saltar"**: crear entrada con `skipped: true` y métricas vacías. El día aparece como "saltado" (icono distinto al completado) y no se cuenta en "X/5 entrenamientos esta semana".
+- [ ] En Training.jsx, al navegar a un día con `skipped` o `doneElsewhere`, mostrar un badge ("Saltado" / "Hecho fuera") y NO mostrar el botón "Comenzar sesión" (o mostrarlo con opción de "rehacer").
+
+---
+
 ## Cascada del banner "Entrenar hoy" (Fase 5b)
 
 **Reportado**: 2026-04-10
