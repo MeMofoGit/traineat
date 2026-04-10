@@ -294,11 +294,11 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
     return (
         <>
         <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 pb-20 sm:p-4 animate-in fade-in duration-200"
             onClick={handleCloseAttempt}
         >
             <div
-                className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[95vh] flex flex-col animate-in slide-in-from-bottom-8 duration-300"
+                className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[80vh] sm:max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-8 duration-300"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
