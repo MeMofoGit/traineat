@@ -31,7 +31,16 @@ export default function Dashboard() {
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
                         Hola, {plan.user?.name || 'Atleta'}
                     </h1>
-                    <p className="text-slate-400 text-sm mt-1">{currentPhase.name}</p>
+                    <p className="text-slate-400 text-sm mt-1">
+                        {currentPhase.name}
+                        {currentPhase.dates?.end &&
+                            (() => {
+                                const daysLeft = Math.ceil((new Date(currentPhase.dates.end) - now) / 86400000);
+                                if (daysLeft > 0 && daysLeft <= 90)
+                                    return <span className="text-slate-500"> · {daysLeft}d restantes</span>;
+                                return null;
+                            })()}
+                    </p>
                 </div>
                 <div className="text-right">
                     <div className="text-2xl font-mono font-semibold text-slate-200">
