@@ -1,8 +1,15 @@
-import React from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Utensils, Dumbbell, User } from 'lucide-react';
 
 export default function Layout() {
+    const { pathname } = useLocation();
+
+    // Scroll to top al cambiar de página
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [pathname]);
+
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100 pb-20 font-sans">
             <main className="max-w-md mx-auto min-h-screen relative bg-slate-950 shadow-2xl overflow-hidden">

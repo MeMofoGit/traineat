@@ -448,11 +448,11 @@ function WeeklyProgress({ plan }) {
         return { days: dayStates, completed: completedWorkouts, total: totalWorkouts };
     }, [history, routines, activePhaseId]);
 
+    const navigate = useNavigate();
+
     if (total === 0) return null;
 
     const pct = Math.round((completed / total) * 100);
-
-    const navigate = useNavigate();
 
     return (
         <section
