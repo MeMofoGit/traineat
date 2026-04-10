@@ -6,10 +6,12 @@ import Diet from './pages/Diet';
 import Training from './pages/Training';
 import Profile from './pages/Profile';
 import Fridge from './pages/Fridge';
+import Auth from './pages/Auth';
 import Layout from './components/Layout';
 
-import { PlanProvider } from './hooks/usePlan';
+import { PlanProvider, usePlan } from './hooks/usePlan';
 import { ToastProvider } from './components/Toast';
+import { Loader2 } from 'lucide-react';
 
 function FallbackUI() {
     return (
@@ -31,23 +33,43 @@ function FallbackUI() {
     );
 }
 
+function AuthGate() {
+    const { authUser, authReady } = usePlan();
+
+    if (!authReady) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <Loader2 size={32} className="text-blue-500 animate-spin" />
+            </div>
+        );
+    }
+
+    if (!authUser) {
+        return <Auth />;
+    }
+
+    return (
+        <Router>
+            <Routes>
+                <Route path="/" element={<Layout />}>
+                    <Route index element={<Dashboard />} />
+                    <Route path="diet" element={<Diet />} />
+                    <Route path="fridge" element={<Fridge />} />
+                    <Route path="training" element={<Training />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+            </Routes>
+        </Router>
+    );
+}
+
 function App() {
     return (
         <Sentry.ErrorBoundary fallback={<FallbackUI />}>
             <PlanProvider>
                 <ToastProvider>
-                    <Router>
-                        <Routes>
-                            <Route path="/" element={<Layout />}>
-                                <Route index element={<Dashboard />} />
-                                <Route path="diet" element={<Diet />} />
-                                <Route path="fridge" element={<Fridge />} />
-                                <Route path="training" element={<Training />} />
-                                <Route path="profile" element={<Profile />} />
-                                <Route path="*" element={<Navigate to="/" replace />} />
-                            </Route>
-                        </Routes>
-                    </Router>
+                    <AuthGate />
                 </ToastProvider>
             </PlanProvider>
         </Sentry.ErrorBoundary>

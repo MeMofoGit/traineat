@@ -13,7 +13,7 @@ import {
     getDoc,
     writeBatch,
 } from 'firebase/firestore';
-import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import {
     subscribeCustomFoods,
     createCustomFood as svcCreateCustomFood,
@@ -25,6 +25,7 @@ const PlanContext = createContext();
 
 export function PlanProvider({ children }) {
     const [user, setUser] = useState(null);
+    const [authReady, setAuthReady] = useState(false); // true once onAuthStateChanged fires
     const [historyList, setHistoryList] = useState([]); // FROM SUBCOLLECTION
     const [customFoods, setCustomFoods] = useState([]); // FROM SUBCOLLECTION users/{uid}/customFoods
 
@@ -116,9 +117,8 @@ export function PlanProvider({ children }) {
 
     // 1. AUTH & SYNC SETUP
     useEffect(() => {
-        signInAnonymously(auth).catch(console.error);
-
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
+            setAuthReady(true);
             if (currentUser) {
                 setUser(currentUser);
                 const uid = currentUser.uid;
@@ -759,6 +759,9 @@ export function PlanProvider({ children }) {
         <PlanContext.Provider
             value={{
                 plan: { ...planData, history: historyList }, // MERGE history back in for consumers
+                authUser: user,
+                authReady,
+                signOut: () => firebaseSignOut(auth),
                 customFoods,
                 addCustomFood,
                 editCustomFood,
