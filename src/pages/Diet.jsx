@@ -656,16 +656,21 @@ export default function Diet() {
 
                 {/* Selector de hora de entreno (solo visible en modo entreno) */}
                 {trainingDay && (
-                    <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-3 py-2">
-                        <Clock size={14} className="text-emerald-400 shrink-0" />
-                        <span className="text-xs text-emerald-300/80">Entreno a las</span>
-                        <input
-                            type="time"
-                            value={plan.trainingTime || '13:00'}
-                            onChange={(e) => updateTrainingTime(e.target.value)}
-                            className="bg-transparent text-emerald-300 font-bold text-sm border-none outline-none w-20 [color-scheme:dark]"
-                        />
-                    </div>
+                    <label className="flex items-center justify-between bg-emerald-950/40 border border-emerald-800/40 hover:border-emerald-600/50 rounded-xl px-3 py-2 cursor-pointer transition-colors">
+                        <div className="flex items-center gap-2">
+                            <Clock size={14} className="text-emerald-400 shrink-0" />
+                            <span className="text-xs text-emerald-300/80">Entreno a las</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <input
+                                type="time"
+                                value={plan.trainingTime || '13:00'}
+                                onChange={(e) => updateTrainingTime(e.target.value)}
+                                className="bg-transparent text-emerald-300 font-bold text-sm border-none outline-none w-20 text-right [color-scheme:dark] cursor-pointer"
+                            />
+                            <Edit2 size={12} className="text-emerald-500/60 shrink-0" />
+                        </div>
+                    </label>
                 )}
                 <Link
                     to="/fridge"
