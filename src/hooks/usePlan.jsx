@@ -87,7 +87,7 @@ export function PlanProvider({ children }) {
                 }
                 // Strip legacy fields from options if present
                 meal.options = meal.options.map(opt => {
-                    const { ingredients, ...rest } = opt;
+                    const { ingredients: _unused, ...rest } = opt;
                     return { ...rest, items: rest.items || [] };
                 });
             });
@@ -739,6 +739,7 @@ export function PlanProvider({ children }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePlan() {
     return useContext(PlanContext);
 }

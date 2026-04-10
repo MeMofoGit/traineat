@@ -23,8 +23,6 @@ export default function Training() {
         plan,
         updateExercise,
         updatePhase,
-        addPhase,
-        deletePhase,
         addExercise,
         deleteExercise,
         updateDayRoutine,
@@ -32,7 +30,6 @@ export default function Training() {
         moveExerciseToDay,
         startSession,
         finishSession,
-        cancelSession,
         toggleSessionPause,
         toggleSetCompletion,
         setActivePhaseId
@@ -64,15 +61,24 @@ export default function Training() {
         }
     }, [plan.phases, activePhaseId, setActivePhaseId]);
 
-    // Watch for last set completion to trigger rest timer
+    const getRoutine = (phase, day) => {
+        const p = plan.routines[phase];
+        if (!p) return { label: "Día Nuevo", focus: "Sin objetivo", exercises: [] };
+        return p[day] || { label: "Descanso", exercises: [] };
+    };
+
+    const routine = getRoutine(activePhaseId, activeDay);
+
+    // Watch for last set completion to trigger rest timer.
+    // setState en effect es intencional: es una reacción a un cambio externo
+    // (lastSetContext actualizado por toggleSetCompletion).
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (plan.activeSession?.lastSetContext) {
             const { exerciseIndex, timestamp } = plan.activeSession.lastSetContext;
-            // Get exercise rest time
             const ex = routine?.exercises?.[exerciseIndex];
             if (ex) {
-                // Parse rest time (e.g. "60s", "1:30", "2m")
-                let seconds = 60; // Default
+                let seconds = 60;
                 const r = ex.rest?.toLowerCase() || "";
                 if (r.includes('m')) seconds = parseInt(r) * 60;
                 else if (r.includes('s')) seconds = parseInt(r);
@@ -83,16 +89,8 @@ export default function Training() {
                 setShowRestTimer(true);
             }
         }
-    }, [plan.activeSession?.lastSetContext]);
-
-    const getRoutine = (phase, day) => {
-        const p = plan.routines[phase];
-        if (!p) return { label: "Día Nuevo", focus: "Sin objetivo", exercises: [] };
-        // Access day directly. 0 is valid key.
-        return p[day] || { label: "Descanso", exercises: [] };
-    };
-
-    const routine = getRoutine(activePhaseId, activeDay);
+    }, [plan.activeSession?.lastSetContext, routine?.exercises]);
+    /* eslint-enable react-hooks/set-state-in-effect */
     const activePhase = plan.phases.find(p => p.id === activePhaseId) || {};
 
     // Helper: Is this the active session day?
@@ -107,15 +105,6 @@ export default function Training() {
     );
 
 
-
-    const handleAddPhase = () => {
-        addPhase();
-        setTimeout(() => {
-            const ids = plan.phases.map(p => p.id);
-            const maxId = Math.max(...ids, 0) + 1;
-            setActivePhaseId(maxId);
-        }, 100);
-    };
 
     const handleAddExercise = (template = null) => {
         addExercise(activePhaseId, activeDay, template);
@@ -705,7 +694,6 @@ function WorkoutStatsModal({ session, onClose }) {
 
     // Percentages for Pie Chart
     const workPct = Math.round((workTime / realDuration) * 100) || 0;
-    const restPct = 100 - workPct;
 
     // Set Analysis (if available)
     const setLogs = session.setLogs || [];

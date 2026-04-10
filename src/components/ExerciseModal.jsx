@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { X, ExternalLink, Image as ImageIcon } from 'lucide-react';
 
 export default function ExerciseModal({ exercise, onClose }) {
-    if (!exercise) return null;
-
     const [imgError, setImgError] = useState(false);
+
+    if (!exercise) return null;
 
     return (
         <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">

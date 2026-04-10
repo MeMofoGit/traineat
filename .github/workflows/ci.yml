@@ -59,9 +59,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Lint deliberadamente ausente: el repo tiene ~100 errores
-      # de lint pre-existentes heredados del commit inicial. Cuando
-      # se limpien (F0 deuda técnica), añadir: - run: npm run lint
+      - name: Lint
+        run: npm run lint
 
       - name: Vite build
         run: npm run build

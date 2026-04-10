@@ -38,7 +38,9 @@ export default function Profile() {
         deadline: user.deadline || ''
     });
 
-    // Re-sync if plan loads from Firestore after mount
+    // Re-sync form cuando el plan se carga de Firestore (puede ser async tras mount).
+    // setState en effect intencional: sincronización externa → estado local.
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         setForm({
             name: user.name || '',
@@ -51,6 +53,7 @@ export default function Profile() {
             deadline: user.deadline || ''
         });
     }, [user.name, user.birthday, user.gender, user.height, user.activity, user.goalType, user.goal, user.deadline]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const [savedFlash, setSavedFlash] = useState(false);
 

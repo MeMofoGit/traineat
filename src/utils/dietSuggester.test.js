@@ -85,8 +85,8 @@ const lunchItems = [
     { foodId: 'broccoli', name: 'Brócoli', category: 'veggies', quantity: '150', unit: 'g' },
 ];
 
-// Items del desayuno
-const breakfastItems = [
+// Items del desayuno (para tests futuros de edge cases con piezas)
+const _breakfastItems = [
     { foodId: 'egg', name: 'Huevo Entero', category: 'protein', quantity: '2', unit: 'pz' },
     { foodId: 'oats', name: 'Avena', category: 'carbs', quantity: '60', unit: 'g' },
     { foodId: 'kiwi', name: 'Kiwi', category: 'fruit', quantity: '1', unit: 'pz' },

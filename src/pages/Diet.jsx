@@ -6,8 +6,7 @@ import { useEntitlements } from '../hooks/useEntitlements';
 import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, Sparkles, Lock, Refrigerator, Info, Wand2, ArrowRightLeft } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
-import { suggestSubstitutions, suggestQuantities } from '../utils/dietSuggester';
-import { findFood } from '../hooks/useMacros';
+import { suggestSubstitutions } from '../utils/dietSuggester';
 
 function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const { customFoods } = usePlan();
@@ -75,13 +74,6 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const handleRemoveItem = (index) => {
         setItems(items.filter((_, i) => i !== index));
     };
-
-    // Construir mapa de customFoods para el findFood
-    const customFoodsMap = useMemo(() => {
-        const map = {};
-        for (const f of customFoods || []) map[f.id] = f;
-        return map;
-    }, [customFoods]);
 
     const handleSuggestSubstitutions = () => {
         const subs = suggestSubstitutions(items, customFoods || []);
