@@ -458,7 +458,41 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 
 ---
 
-### Fase 5 — Sugeridor de cantidades (algoritmo local)
+### Bugfixes pendientes (sin fase, se abordan antes de Fase 5)
+*Bugs reportados por Igor 2026-04-10. Se hacen en una sesión de polish.*
+
+- ☐ **BUG-1** Reordenación de ejercicios pierde marcas de completado.
+  - **Causa**: `completedSets` usa clave `"exerciseIndex-setIndex"` (posición). Al reordenar, las posiciones cambian pero las claves NO se remapean.
+  - **Fix**: en `reorderExercises` de `usePlan.jsx`, si hay `activeSession`, remapear claves de `completedSets` para reflejar los nuevos índices. También actualizar `lastSetContext.exerciseIndex` si aplica.
+  - **Archivos**: `src/hooks/usePlan.jsx` (reorderExercises), `src/pages/Training.jsx` (verificar render).
+  - **Prioridad**: ALTA — afecta sesiones activas, corrompe visualmente el progreso.
+
+- ☐ **BUG-2** Timer +30s resetea en lugar de sumar.
+  - **Causa**: el handler hace `setRestStartTime(Date.now())` que reinicia el countdown desde 0. Debería sumar 30s a la duración restante sin tocar el startTime.
+  - **Fix**: cambiar a `setRestDuration(prev => prev + 30)` y dejar `restStartTime` intacto.
+  - **Archivos**: `src/pages/Training.jsx` línea ~270.
+  - **Prioridad**: MEDIA.
+
+- ☐ **BUG-3** Timer de descanso para en 0 en lugar de contar en negativo.
+  - **Mejora**: cuando el countdown llega a 0, seguir contando en negativo (ej: `-12s`) con color rojo para que el usuario vea cuánto se pasó. Ese tiempo extra se sumará a la estadística de descanso real.
+  - **Fix**: en `RestCountdown`, quitar el clamp a 0 en `remaining <= 0`, mostrar negativo con estilo distinto (rojo, pulsante). Opcionalmente: `onComplete` se llama a 0 pero el timer sigue visible.
+  - **Archivos**: `src/pages/Training.jsx` RestCountdown (~línea 661).
+  - **Prioridad**: MEDIA.
+
+- ☐ **BUG-4** Botón "atrás" del navegador no cierra el modal de crear alimento.
+  - **Causa**: el modal `CustomFoodModal` no pushea al `history` del browser. Al pulsar atrás en móvil, cierra la página en vez del modal.
+  - **Fix**: al abrir el modal, `history.pushState({modal:'customFood'}, '')`. Listener `popstate` cierra el modal. Al cerrar normalmente, `history.back()` si fue pushado.
+  - **Archivos**: `src/components/CustomFoodModal.jsx` (o wrapper en `Fridge.jsx`).
+  - **Prioridad**: MEDIA — afecta UX móvil.
+
+- ☐ **BUG-5** Falta info nutricional por alimento en la pantalla de Diet.
+  - **Mejora**: cada item en una comida debería tener un botón "info" que muestre una mini-tarjeta tipo etiqueta nutricional (P/C/G/kcal y opcionales: azúcares, fibra, saturadas, sal, nutriscore si viene de OFF).
+  - **Archivos**: `src/pages/Diet.jsx` (StructuredMealEditor, renderizado de items).
+  - **Prioridad**: BAJA — enhancement visual, no bug funcional.
+
+---
+
+### Fase 5a — Sugeridor de cantidades + sustitución con Mi Nevera
 *Premium feature. JS puro, sin LLM.*
 
 - ☐ **C5.1** Función `suggestQuantities(meal, targets)`:
@@ -466,16 +500,45 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
   - Algoritmo: escalado proporcional inicial, refinable a programación lineal con constraints (mín/máx por item, locked items).
   - Output: array `[{ itemId, currentQty, suggestedQty, deltaPct }]`.
 - ☐ **C5.2** Edge cases: items en piezas (huevo, fruta) → sugerir múltiplos enteros, no 1.7 huevos.
-- ☐ **C5.3** UI panel sugerencias en `Diet.jsx`:
-  - Botón "Optimizar comida" debajo de los items.
-  - Modal con propuesta lado a lado (actual vs sugerido).
-  - Cada item con switch para incluirlo o lockearlo.
-  - Botón "Aplicar".
-- ☐ **C5.4** Gating: tras `entitlements.smartSuggest`.
+- ☐ **C5.3** Función `suggestSubstitutions(meal, customFoods)`:
+  - Para cada item genérico (de FOOD_DATABASE), buscar en `customFoods` del usuario el producto con macros más cercanos (distancia euclidiana normalizada en P/C/G por 100g).
+  - Output: array `[{ itemId, currentFoodId, suggestedFoodId, similarityPct }]`.
+  - Threshold: solo sugerir si similarity > 70% (ajustable).
+- ☐ **C5.4** Botón **"Rellenar con Mi Nevera"** en `Diet.jsx`:
+  - Aplica sustitución + ajuste de cantidades para toda la comida de una pasada.
+  - Modal previo con propuesta lado a lado (actual vs sugerido).
+  - Cada item con switch para incluirlo o lockearlo ("no toques mi yogur").
+  - Botón "Aplicar seleccionados".
+- ☐ **C5.5** Botón **"Optimizar cantidades"** (sin sustitución):
+  - Solo ajusta cantidades sin cambiar los productos. Para cuando el usuario ya tiene los productos que quiere pero las cantidades no cuadran.
+- ☐ **C5.6** Gating: tras `entitlements.smartSuggest`.
 
-**Notas Fase 5**:
+**Notas Fase 5a**:
 - Empezar con escalado proporcional simple. Si los resultados son malos, evolucionar a optimización con `javascript-lp-solver` o similar.
+- La sustitución busca por similaridad de macros, NO por nombre. "Pan Integral" genérico → "Pan Bimbo Integral" del usuario si los macros se parecen.
 - No bloquear publicación si esta fase no está pulida — es premium.
+
+---
+
+### Fase 5b — Nutrient Timing (hora de entreno → redistribución de comidas)
+*Feature inteligente que diferencia de apps genéricas. Depende de Fase 5a (targets de macros).*
+
+- ☐ **C5b.1** Nuevo campo `plan.trainingTime`: hora del entreno (editable globalmente desde Dashboard o Diet, opcionalmente override por día de la semana).
+- ☐ **C5b.2** Lógica de nutrient timing en `useSchedule.js` o hook nuevo `useNutrientTiming`:
+  - Dado `trainingTime` + `activePhaseId` (que determina goalType: volumen/definición/recomp/mantenimiento):
+    - **Volumen**: concentrar 60% de carbos en comida pre-entreno + comida post-entreno.
+    - **Definición**: carbos SOLO post-entreno. Pre-entreno: proteínas + grasas. Resto del día: zero/low carb.
+    - **Recomp**: distribución equilibrada con pico moderado post-entreno (~40% carbos post).
+    - **Mantenimiento**: distribución uniforme, sin timing especial.
+  - Output: `schedule` dinámico con labels tipo "Pre-Entreno (alto en carbos)" y distribución de macros sugerida por comida.
+- ☐ **C5b.3** UI: selector de hora de entreno (time picker) en Dashboard o cabecera de Diet. Toggle "timing automático" on/off.
+- ☐ **C5b.4** Integración con el sugeridor de Fase 5a: las cantidades sugeridas respetan el timing (ej: si pre-entreno debe tener 40g carbos, el sugeridor ajusta la cantidad de arroz para cuadrar).
+- ☐ **C5b.5** Feedback visual en Diet: cada comida muestra un badge con el rol nutricional ("Pre-Entreno", "Ventana Anabólica", "Recuperación", "Low Carb") basado en su posición relativa al entreno.
+
+**Notas Fase 5b**:
+- Esta feature es DIFERENCIADORA. La mayoría de apps de nutrición no conectan el timing de macros con la hora del entrenamiento. Es valor real para usuarios fitness serios.
+- La lógica de distribución de macros por fase es conocimiento de nutrición deportiva establecido, no algo que inventemos. Las reglas (60% carbos post en volumen, zero carb pre en defi) se basan en guías de periodización nutricional estándar.
+- Implica refactorizar `plan.schedule.default` para ser más dinámico (hoy es estático por hora). Posiblemente moverlo de "horas fijas" a "posiciones relativas al entreno" (pre-1, pre-2, post-1, post-2, etc.).
 
 ---
 
