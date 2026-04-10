@@ -1,5 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, Battery, Calendar, ArrowRight, Dumbbell, Edit2, Check, X, Target, TrendingUp } from 'lucide-react';
+import {
+    Clock,
+    Battery,
+    Calendar,
+    ArrowRight,
+    Dumbbell,
+    Edit2,
+    Check,
+    X,
+    Target,
+    TrendingUp,
+    TrendingDown,
+    Minus,
+    Scale,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSchedule } from '../hooks/useSchedule';
 import { usePlan } from '../hooks/usePlan';
@@ -28,6 +42,9 @@ export default function Dashboard() {
                     </div>
                 </div>
             </header>
+
+            {/* Weight badge */}
+            <WeightBadge plan={plan} />
 
             {/* Phase Selector */}
             <PhaseSelector phases={plan.phases || []} activeId={plan.activePhaseId} onChange={setActivePhaseId} />
@@ -510,5 +527,36 @@ function WeeklyProgress({ plan }) {
                 ))}
             </div>
         </section>
+    );
+}
+
+function WeightBadge({ plan }) {
+    const weights = plan.weightLog || [];
+    if (weights.length === 0) return null;
+
+    const latest = weights[weights.length - 1];
+    const previous = weights.length > 1 ? weights[weights.length - 2] : null;
+    const diff = previous ? (latest.weight - previous.weight).toFixed(1) : null;
+    const diffNum = diff ? parseFloat(diff) : 0;
+
+    return (
+        <div className="flex items-center justify-between bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-700/50">
+            <div className="flex items-center gap-2.5">
+                <Scale size={16} className="text-blue-400" />
+                <span className="text-sm font-bold text-white">{latest.weight} kg</span>
+                {diff && diffNum !== 0 && (
+                    <span
+                        className={`text-xs font-mono flex items-center gap-0.5 ${diffNum < 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+                    >
+                        {diffNum < 0 ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+                        {diffNum > 0 ? '+' : ''}
+                        {diff}
+                    </span>
+                )}
+            </div>
+            <span className="text-[10px] text-slate-500">
+                {new Date(latest.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+            </span>
+        </div>
     );
 }
