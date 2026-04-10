@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { usePlan } from '../hooks/usePlan';
 import { useMacros } from '../hooks/useMacros';
 import { useEntitlements } from '../hooks/useEntitlements';
-import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, Sparkles, Lock, Refrigerator, Info } from 'lucide-react';
+import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, Sparkles, Lock, Refrigerator, Info, Wand2, ArrowRightLeft } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
+import { suggestSubstitutions, suggestQuantities } from '../utils/dietSuggester';
+import { findFood } from '../hooks/useMacros';
 
 function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const { customFoods } = usePlan();
@@ -25,6 +27,11 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
 
     // CustomFood modal
     const [fridgeModalOpen, setFridgeModalOpen] = useState(false);
+
+    // Sugerencias (Fase 5a)
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [suggestionMode, setSuggestionMode] = useState(null); // 'substitute' | 'optimize'
+    const [suggestions, setSuggestions] = useState(null);
 
     // Disponibles = predefinidos + custom foods del usuario, filtrados por categoría.
     // Custom foods van marcados con `source === 'custom'` para diferenciarlos en el select.
@@ -68,6 +75,28 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const handleRemoveItem = (index) => {
         setItems(items.filter((_, i) => i !== index));
     };
+
+    // Construir mapa de customFoods para el findFood
+    const customFoodsMap = useMemo(() => {
+        const map = {};
+        for (const f of customFoods || []) map[f.id] = f;
+        return map;
+    }, [customFoods]);
+
+    const handleSuggestSubstitutions = () => {
+        const subs = suggestSubstitutions(items, customFoods || []);
+        if (subs.length === 0) {
+            alert('No hay sustituciones disponibles. Añade más productos a Mi Nevera de la misma categoría que los de tu comida.');
+            return;
+        }
+        setSuggestions({ type: 'substitutions', data: subs });
+        setSuggestionMode('substitute');
+        setShowSuggestions(true);
+    };
+
+    // TODO (C5.5): handleOptimizeQuantities requiere targets de macros
+    // per-meal, no per-day. Necesita definir cómo repartir el daily target
+    // entre comidas (proporcional, fixed, user-defined). Diferido.
 
     const commitSave = () => {
         onSave(items);
@@ -189,12 +218,42 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
                     </div>
                 </div>
             ) : (
-                <button
-                    onClick={() => setIsAdding(true)}
-                    className="w-full py-2 border border-dashed border-slate-700 text-slate-500 hover:border-blue-500 hover:text-blue-500 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-                >
-                    <Plus size={14} /> Añadir Alimento
-                </button>
+                <div className="space-y-2">
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="w-full py-2 border border-dashed border-slate-700 text-slate-500 hover:border-blue-500 hover:text-blue-500 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                        <Plus size={14} /> Añadir Alimento
+                    </button>
+
+                    {/* Botón "Rellenar con Mi Nevera" (Fase 5a) — solo si hay items */}
+                    {items.length > 0 && entitlements.smartSuggest && (customFoods || []).length > 0 && (
+                        <button
+                            onClick={handleSuggestSubstitutions}
+                            className="w-full py-2 bg-cyan-900/20 border border-cyan-800/50 text-cyan-300 hover:bg-cyan-900/40 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
+                        >
+                            <Refrigerator size={13} /> Rellenar con Mi Nevera
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Panel de sugerencias */}
+            {showSuggestions && suggestions && (
+                <SuggestionPanel
+                    mode={suggestionMode}
+                    suggestions={suggestions}
+                    items={items}
+                    onApply={(newItems) => {
+                        setItems(newItems);
+                        setShowSuggestions(false);
+                        setSuggestions(null);
+                    }}
+                    onClose={() => {
+                        setShowSuggestions(false);
+                        setSuggestions(null);
+                    }}
+                />
             )}
 
             <div className="flex gap-2 pt-4 border-t border-slate-700/50">
@@ -521,6 +580,109 @@ export default function Diet() {
                             />
                         )
                     })}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Panel de sugerencias de sustitución (Fase 5a).
+ * Muestra una lista de sustituciones propuestas: alimento genérico → producto
+ * de Mi Nevera, con % de similaridad. El usuario puede aceptar/rechazar cada una.
+ */
+function SuggestionPanel({ suggestions, items, onApply, onClose }) {
+    const [selected, setSelected] = useState(() =>
+        new Set(suggestions?.data?.map(s => s.itemIndex) || [])
+    );
+
+    if (!suggestions?.data?.length) return null;
+
+    const subs = suggestions.data;
+
+    const toggleItem = (idx) => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (next.has(idx)) next.delete(idx);
+            else next.add(idx);
+            return next;
+        });
+    };
+
+    const handleApply = () => {
+        const newItems = [...items];
+        for (const sub of subs) {
+            if (!selected.has(sub.itemIndex)) continue;
+            const food = sub.suggestedFood;
+            newItems[sub.itemIndex] = {
+                ...newItems[sub.itemIndex],
+                foodId: food.id,
+                name: food.name,
+                category: food.category,
+                unit: food.defaultUnit || newItems[sub.itemIndex].unit,
+                // Mantener la cantidad original — el usuario ajusta si quiere
+            };
+        }
+        onApply(newItems);
+    };
+
+    return (
+        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-xl p-3 space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-cyan-300">
+                    <ArrowRightLeft size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Sustituciones de Mi Nevera</span>
+                </div>
+                <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
+                    <X size={14} />
+                </button>
+            </div>
+
+            <div className="space-y-2">
+                {subs.map((sub) => {
+                    const isSelected = selected.has(sub.itemIndex);
+                    return (
+                        <button
+                            key={sub.itemIndex}
+                            onClick={() => toggleItem(sub.itemIndex)}
+                            className={`w-full text-left p-2.5 rounded-lg border transition-all ${
+                                isSelected
+                                    ? 'bg-cyan-900/30 border-cyan-600'
+                                    : 'bg-slate-900/50 border-slate-800 opacity-60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs ${
+                                    isSelected ? 'bg-cyan-600 border-cyan-500 text-white' : 'border-slate-600'
+                                }`}>
+                                    {isSelected && <Check size={12} />}
+                                </div>
+                                <span className="text-[10px] font-mono text-cyan-400">{sub.similarity}% similar</span>
+                            </div>
+                            <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-xs">
+                                <div className="text-slate-400 truncate">{sub.currentName}</div>
+                                <ArrowRightLeft size={10} className="text-slate-600 shrink-0" />
+                                <div className="text-cyan-200 font-bold truncate">{sub.suggestedFood.name}</div>
+                            </div>
+                            {sub.suggestedFood.brand && (
+                                <div className="text-[9px] text-slate-500 mt-0.5 pl-7">{sub.suggestedFood.brand}</div>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+                <button onClick={onClose} className="flex-1 py-2 bg-slate-800 text-slate-400 rounded-lg text-xs font-bold">
+                    Cancelar
+                </button>
+                <button
+                    onClick={handleApply}
+                    disabled={selected.size === 0}
+                    className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                    <Check size={12} />
+                    Aplicar {selected.size > 0 ? `(${selected.size})` : ''}
+                </button>
             </div>
         </div>
     );
