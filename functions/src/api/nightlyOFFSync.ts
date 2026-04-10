@@ -38,6 +38,7 @@ export const nightlyOFFSync = onSchedule(
     memory: '2GiB',
     timeoutSeconds: 1800,
     maxInstances: 1,
+    concurrency: 1, // SIN esto, una instancia podía manejar 80 req concurrentes y maxInstances:1 no garantizaba 1 ejecución total
     retryCount: 0,
   },
   async () => {
@@ -80,6 +81,7 @@ export const triggerOffSync = onCall<TriggerOffSyncRequest, Promise<SyncResult>>
     memory: '2GiB',
     timeoutSeconds: 1800,
     maxInstances: 1,
+    concurrency: 1,
     cors: true,
   },
   async (request) => {
