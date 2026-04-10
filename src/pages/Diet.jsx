@@ -7,6 +7,7 @@ import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, 
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
 import { suggestSubstitutions } from '../utils/dietSuggester';
+import { useToast } from '../components/Toast';
 
 function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const { customFoods } = usePlan();
@@ -75,10 +76,12 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
         setItems(items.filter((_, i) => i !== index));
     };
 
+    const toast = useToast();
+
     const handleSuggestSubstitutions = () => {
         const subs = suggestSubstitutions(items, customFoods || []);
         if (subs.length === 0) {
-            alert('No hay sustituciones disponibles. Añade más productos a Mi Nevera de la misma categoría que los de tu comida.');
+            toast.info('No hay sustituciones disponibles. Añade más productos a Mi Nevera de la misma categoría.');
             return;
         }
         setSuggestions({ type: 'substitutions', data: subs });

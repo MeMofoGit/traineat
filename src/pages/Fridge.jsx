@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Refrigerator, Plus, Search, Edit2, Trash2, AlertTriangle, ArrowLeft, Lock, Check } from 'lucide-react';
+import { Refrigerator, Plus, Search, Edit2, Trash2, AlertTriangle, ArrowLeft, Lock } from 'lucide-react';
+import { useToast } from '../components/Toast';
 import { usePlan } from '../hooks/usePlan';
 import { FOOD_CATEGORIES } from '../data/food_database';
 import { useEntitlements } from '../hooks/useEntitlements';
@@ -37,7 +38,7 @@ export default function Fridge() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingFood, setEditingFood] = useState(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-    const [savedToast, setSavedToast] = useState(null); // string message or null
+    const toast = useToast();
 
     const filtered = useMemo(() => {
         let list = customFoods || [];
@@ -72,8 +73,9 @@ export default function Fridge() {
         try {
             await removeCustomFood(foodId);
             setConfirmDeleteId(null);
+            toast.success('Producto eliminado');
         } catch (e) {
-            alert(e?.message || 'Error al borrar');
+            toast.error(e?.message || 'Error al borrar');
         }
     }
 
@@ -191,16 +193,6 @@ export default function Fridge() {
                 </>
             )}
 
-            {/* Toast de confirmación */}
-            {savedToast && (
-                <div className="fixed bottom-24 inset-x-4 z-50 flex justify-center animate-in slide-in-from-bottom-4 duration-300">
-                    <div className="bg-emerald-600 text-white px-5 py-3 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/40 flex items-center gap-2">
-                        <Check size={16} />
-                        {savedToast}
-                    </div>
-                </div>
-            )}
-
             {/* Modal */}
             <CustomFoodModal
                 isOpen={modalOpen}
@@ -208,8 +200,7 @@ export default function Fridge() {
                 mode={editingFood ? 'edit' : 'create'}
                 initialFood={editingFood}
                 onSaved={(food) => {
-                    setSavedToast(editingFood ? 'Producto actualizado' : `${food?.name || 'Producto'} añadido a Mi Nevera`);
-                    setTimeout(() => setSavedToast(null), 3000);
+                    toast.success(editingFood ? 'Producto actualizado' : `${food?.name || 'Producto'} añadido a Mi Nevera`);
                 }}
             />
 

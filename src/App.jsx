@@ -8,10 +8,12 @@ import Fridge from './pages/Fridge';
 import Layout from './components/Layout';
 
 import { PlanProvider } from './hooks/usePlan';
+import { ToastProvider } from './components/Toast';
 
 function App() {
   return (
     <PlanProvider>
+      <ToastProvider>
       <Router>
         <Routes>
           <Route path="/" element={<Layout />}>
@@ -24,6 +26,7 @@ function App() {
           </Route>
         </Routes>
       </Router>
+      </ToastProvider>
     </PlanProvider>
   );
 }
