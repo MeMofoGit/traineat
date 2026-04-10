@@ -41,3 +41,4 @@ functions/.runtimeconfig.json
 *.njsproj
 *.sln
 *.sw?
+.firebase/
