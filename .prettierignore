@@ -1,0 +1,8 @@
+dist
+node_modules
+functions/lib
+functions/node_modules
+package-lock.json
+functions/package-lock.json
+*.jsonl
+*.jsonl.gz
