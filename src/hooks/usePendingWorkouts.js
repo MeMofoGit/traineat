@@ -42,7 +42,7 @@ function saveDecisions(all) {
 }
 
 export function usePendingWorkouts() {
-    const { plan } = usePlan();
+    const { plan, logSkippedSession } = usePlan();
     const [decisions, setDecisions] = useState(loadDecisions);
 
     const activePhaseId = plan.activePhaseId || plan.phases?.[0]?.id || 1;
@@ -95,11 +95,27 @@ export function usePendingWorkouts() {
         });
     }, []);
 
+    const markSkipped = useCallback(
+        (dayId) => {
+            setDecision(dayId, 'skipped');
+            logSkippedSession(activePhaseId, dayId, 'skipped');
+        },
+        [activePhaseId, logSkippedSession, setDecision]
+    );
+
+    const markDoneElsewhere = useCallback(
+        (dayId) => {
+            setDecision(dayId, 'done_elsewhere');
+            logSkippedSession(activePhaseId, dayId, 'doneElsewhere');
+        },
+        [activePhaseId, logSkippedSession, setDecision]
+    );
+
     return {
         pending,
         hasPending: pending.length > 0,
         firstPending: pending[0] || null,
-        markSkipped: (dayId) => setDecision(dayId, 'skipped'),
-        markDoneElsewhere: (dayId) => setDecision(dayId, 'done_elsewhere'),
+        markSkipped,
+        markDoneElsewhere,
     };
 }

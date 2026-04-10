@@ -1,7 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { PLAN_DATA, GIF_MAP } from '../data/plan';
 import { db, auth } from '../firebase';
-import { doc, onSnapshot, setDoc, collection, addDoc, query, orderBy, limit, getDoc, writeBatch } from 'firebase/firestore';
+import {
+    doc,
+    onSnapshot,
+    setDoc,
+    collection,
+    addDoc,
+    query,
+    orderBy,
+    limit,
+    getDoc,
+    writeBatch,
+} from 'firebase/firestore';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
     subscribeCustomFoods,
@@ -39,27 +50,27 @@ export function PlanProvider({ children }) {
         // Migration: User profile fields used by useMacros / AI context
         parsed.user = {
             ...PLAN_DATA.user,
-            ...(parsed.user || {})
+            ...(parsed.user || {}),
         };
 
         // Migration: Ensure monthLabels
         if (parsed.phases && PLAN_DATA.phases) {
             parsed.phases = parsed.phases.map((p, i) => ({
                 ...p,
-                monthLabel: p.monthLabel || PLAN_DATA.phases[i]?.monthLabel || "Periodo Personalizado"
+                monthLabel: p.monthLabel || PLAN_DATA.phases[i]?.monthLabel || 'Periodo Personalizado',
             }));
         }
 
         // Migration: Force Update GIF URLs from GIF_MAP
         // This ensures that even if local storage has old data, we point to the new local assets
         if (parsed.routines) {
-             Object.keys(parsed.routines).forEach(phaseId => {
+            Object.keys(parsed.routines).forEach((phaseId) => {
                 const phase = parsed.routines[phaseId];
                 if (!phase) return;
-                Object.keys(phase).forEach(dayId => {
+                Object.keys(phase).forEach((dayId) => {
                     const day = phase[dayId];
                     if (day && day.exercises) {
-                        day.exercises = day.exercises.map(ex => {
+                        day.exercises = day.exercises.map((ex) => {
                             // Check exact name match in our new GIF Map
                             if (GIF_MAP[ex.name]) {
                                 // console.log(`Migrating GIF for ${ex.name}: ${GIF_MAP[ex.name]}`);
@@ -69,24 +80,26 @@ export function PlanProvider({ children }) {
                         });
                     }
                 });
-             });
+            });
         }
 
         // Migration: Meal Options (drop legacy `ingredients` text format)
         if (parsed.meals) {
-            Object.keys(parsed.meals).forEach(mealId => {
+            Object.keys(parsed.meals).forEach((mealId) => {
                 const meal = parsed.meals[mealId];
                 if (!meal.options) {
-                    meal.options = [{
-                        id: 1,
-                        name: "Opción 1",
-                        items: meal.items || [],
-                        note: meal.note || ''
-                    }];
+                    meal.options = [
+                        {
+                            id: 1,
+                            name: 'Opción 1',
+                            items: meal.items || [],
+                            note: meal.note || '',
+                        },
+                    ];
                     meal.selectedOptionIndex = 0;
                 }
                 // Strip legacy fields from options if present
-                meal.options = meal.options.map(opt => {
+                meal.options = meal.options.map((opt) => {
                     const { ingredients: _unused, ...rest } = opt;
                     return { ...rest, items: rest.items || [] };
                 });
@@ -103,17 +116,17 @@ export function PlanProvider({ children }) {
             if (currentUser) {
                 setUser(currentUser);
                 const uid = currentUser.uid;
-                console.log("🔑 Current User UID:", uid);
+                console.log('🔑 Current User UID:', uid);
 
                 // A. PLAN LISTENER (users/{uid}/data/plan)
                 const planRef = doc(db, 'users', uid, 'data', 'plan');
                 const planUnsub = onSnapshot(planRef, async (docSnap) => {
                     if (docSnap.exists()) {
-                        console.log("📥 Loaded PLAN from Firestore");
+                        console.log('📥 Loaded PLAN from Firestore');
                         setPlanData(docSnap.data());
                     } else {
                         // MIGRATION / INITIAL UPLOAD logic
-                        console.log("🚧 No Plan found in new path. Checking legacy/local...");
+                        console.log('🚧 No Plan found in new path. Checking legacy/local...');
 
                         // Check Legacy Path (users/{uid})
                         const legacyRef = doc(db, 'users', uid);
@@ -123,15 +136,16 @@ export function PlanProvider({ children }) {
                         let historyToMigrate = [];
 
                         if (legacySnap.exists()) {
-                            console.log("♻️ Found Legacy Data. Migrating...");
+                            console.log('♻️ Found Legacy Data. Migrating...');
                             const legacyData = legacySnap.data();
                             historyToMigrate = legacyData.history || [];
                             delete legacyData.history;
                             dataToMigrate = legacyData;
                         } else {
                             // First time ever? Upload local storage
-                            console.log("📤 Uploading Local Data...");
-                            historyToMigrate = JSON.parse(localStorage.getItem('fitness_plan_data') || '{}').history || [];
+                            console.log('📤 Uploading Local Data...');
+                            historyToMigrate =
+                                JSON.parse(localStorage.getItem('fitness_plan_data') || '{}').history || [];
                         }
 
                         // 1. Save Plan to new location
@@ -143,26 +157,22 @@ export function PlanProvider({ children }) {
                             const batch = writeBatch(db);
                             const historyCollection = collection(db, 'users', uid, 'history');
 
-                            historyToMigrate.forEach(session => {
+                            historyToMigrate.forEach((session) => {
                                 // Create a new doc reference for each session
                                 const newHistRef = doc(historyCollection, session.id.toString());
                                 batch.set(newHistRef, session);
                             });
                             await batch.commit();
-                            console.log("✅ Migration Complete");
+                            console.log('✅ Migration Complete');
                         }
                     }
                 });
 
                 // B. HISTORY LISTENER (users/{uid}/history)
-                const historyQuery = query(
-                    collection(db, 'users', uid, 'history'),
-                    orderBy('date', 'desc'),
-                    limit(50)
-                );
+                const historyQuery = query(collection(db, 'users', uid, 'history'), orderBy('date', 'desc'), limit(50));
 
                 const historyUnsub = onSnapshot(historyQuery, (snapshot) => {
-                    const loadedHistory = snapshot.docs.map(doc => doc.data());
+                    const loadedHistory = snapshot.docs.map((doc) => doc.data());
                     setHistoryList(loadedHistory);
                     console.log(`📜 Loaded ${loadedHistory.length} history items`);
                 });
@@ -200,7 +210,7 @@ export function PlanProvider({ children }) {
         if (user) {
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
             timeoutRef.current = setTimeout(() => {
-                console.log("☁️ Syncing PLAN to Firestore...");
+                console.log('☁️ Syncing PLAN to Firestore...');
                 setDoc(doc(db, 'users', user.uid, 'data', 'plan'), planData).catch(console.error);
             }, 2000);
         }
@@ -208,7 +218,7 @@ export function PlanProvider({ children }) {
 
     // MEAL ACTIONS
     const updateMealOption = (mealId, optionIndex, newContent) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const meal = prev.meals[mealId];
             if (!meal) return prev;
 
@@ -217,15 +227,15 @@ export function PlanProvider({ children }) {
 
             return {
                 ...prev,
-                meals: { ...prev.meals, [mealId]: { ...meal, options: newOptions } }
+                meals: { ...prev.meals, [mealId]: { ...meal, options: newOptions } },
             };
         });
     };
 
     const addMealOption = (mealId, baseOptionIndex = null) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const meal = prev.meals[mealId];
-            const newId = (Math.max(...meal.options.map(o => o.id), 0) + 1);
+            const newId = Math.max(...meal.options.map((o) => o.id), 0) + 1;
 
             let newOption;
             if (baseOptionIndex !== null && meal.options[baseOptionIndex]) {
@@ -233,7 +243,7 @@ export function PlanProvider({ children }) {
                 newOption = {
                     ...meal.options[baseOptionIndex],
                     id: newId,
-                    name: `Opción ${meal.options.length + 1} (Copia)`
+                    name: `Opción ${meal.options.length + 1} (Copia)`,
                 };
             } else {
                 // Empty
@@ -241,7 +251,7 @@ export function PlanProvider({ children }) {
                     id: newId,
                     name: `Opción ${meal.options.length + 1}`,
                     items: [],
-                    note: ''
+                    note: '',
                 };
             }
 
@@ -252,52 +262,55 @@ export function PlanProvider({ children }) {
                     [mealId]: {
                         ...meal,
                         options: [...meal.options, newOption],
-                        selectedOptionIndex: meal.options.length // Auto-select new
-                    }
-                }
+                        selectedOptionIndex: meal.options.length, // Auto-select new
+                    },
+                },
             };
         });
     };
 
     const deleteMealOption = (mealId, index) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const meal = prev.meals[mealId];
             if (meal.options.length <= 1) return prev; // Don't delete last one
 
             const newOptions = meal.options.filter((_, i) => i !== index);
-            const newIndex = index === meal.selectedOptionIndex
-                ? 0
-                : (index < meal.selectedOptionIndex ? meal.selectedOptionIndex - 1 : meal.selectedOptionIndex);
+            const newIndex =
+                index === meal.selectedOptionIndex
+                    ? 0
+                    : index < meal.selectedOptionIndex
+                      ? meal.selectedOptionIndex - 1
+                      : meal.selectedOptionIndex;
 
             return {
                 ...prev,
                 meals: {
                     ...prev.meals,
-                    [mealId]: { ...meal, options: newOptions, selectedOptionIndex: newIndex }
-                }
+                    [mealId]: { ...meal, options: newOptions, selectedOptionIndex: newIndex },
+                },
             };
         });
     };
 
     const setSelectedOption = (mealId, index) => {
-        setPlanData(prev => ({
+        setPlanData((prev) => ({
             ...prev,
             meals: {
                 ...prev.meals,
-                [mealId]: { ...prev.meals[mealId], selectedOptionIndex: index }
-            }
+                [mealId]: { ...prev.meals[mealId], selectedOptionIndex: index },
+            },
         }));
     };
 
     const updateUser = (newFields) => {
-        setPlanData(prev => ({
+        setPlanData((prev) => ({
             ...prev,
-            user: { ...prev.user, ...newFields }
+            user: { ...prev.user, ...newFields },
         }));
     };
 
     const setActivePhaseId = (phaseId) => {
-        setPlanData(prev => ({ ...prev, activePhaseId: phaseId }));
+        setPlanData((prev) => ({ ...prev, activePhaseId: phaseId }));
     };
 
     const logWeight = (weight) => {
@@ -305,9 +318,9 @@ export function PlanProvider({ children }) {
         const numWeight = parseFloat(weight);
         if (isNaN(numWeight)) return;
 
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const newLog = [...prev.weightLog];
-            const existingIndex = newLog.findIndex(entry => entry.date === today);
+            const existingIndex = newLog.findIndex((entry) => entry.date === today);
 
             if (existingIndex >= 0) {
                 newLog[existingIndex].weight = numWeight;
@@ -323,7 +336,7 @@ export function PlanProvider({ children }) {
     };
 
     const updateExercise = (phaseId, dayId, exerciseIndex, newFields) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const newRoutines = { ...prev.routines };
             if (!newRoutines[phaseId]) newRoutines[phaseId] = {};
             if (!newRoutines[phaseId][dayId]) newRoutines[phaseId][dayId] = { exercises: [] };
@@ -345,33 +358,33 @@ export function PlanProvider({ children }) {
 
     // --- PHASE MANAGEMENT ---
     const updatePhase = (phaseId, newFields) => {
-        setPlanData(prev => ({
+        setPlanData((prev) => ({
             ...prev,
-            phases: prev.phases.map(p => p.id === phaseId ? { ...p, ...newFields } : p)
+            phases: prev.phases.map((p) => (p.id === phaseId ? { ...p, ...newFields } : p)),
         }));
     };
 
     const addPhase = () => {
-        setPlanData(prev => {
-            const newId = (Math.max(...prev.phases.map(p => p.id), 0) || 0) + 1;
+        setPlanData((prev) => {
+            const newId = (Math.max(...prev.phases.map((p) => p.id), 0) || 0) + 1;
             const newPhase = {
                 id: newId,
-                name: "Nueva Fase",
-                monthLabel: "Nuevo Periodo",
-                dates: { start: "", end: "" },
+                name: 'Nueva Fase',
+                monthLabel: 'Nuevo Periodo',
+                dates: { start: '', end: '' },
             };
             const newRoutines = { ...prev.routines, [newId]: {} };
             return {
                 ...prev,
                 phases: [...prev.phases, newPhase],
-                routines: newRoutines
+                routines: newRoutines,
             };
         });
     };
 
     const deletePhase = (id) => {
-        setPlanData(prev => {
-            const newPhases = prev.phases.filter(p => p.id !== id);
+        setPlanData((prev) => {
+            const newPhases = prev.phases.filter((p) => p.id !== id);
             const newRoutines = { ...prev.routines };
             delete newRoutines[id];
             return { ...prev, phases: newPhases, routines: newRoutines };
@@ -380,7 +393,7 @@ export function PlanProvider({ children }) {
 
     // --- DAY & EXERCISE MANAGEMENT ---
     const updateDayRoutine = (phaseId, dayId, newFields) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const newRoutines = { ...prev.routines };
             if (!newRoutines[phaseId]) newRoutines[phaseId] = {};
 
@@ -389,15 +402,15 @@ export function PlanProvider({ children }) {
 
             newRoutines[phaseId][dayId] = {
                 ...(newRoutines[phaseId][dayId] || { exercises: [] }),
-                ...newFields
+                ...newFields,
             };
             return { ...prev, routines: newRoutines };
         });
     };
 
     const addExercise = (phaseId, dayId, exerciseData = null) => {
-        const newEx = exerciseData || { name: "Nuevo Ejercicio", sets: 3, reps: "10", rest: "60s" };
-        setPlanData(prev => {
+        const newEx = exerciseData || { name: 'Nuevo Ejercicio', sets: 3, reps: '10', rest: '60s' };
+        setPlanData((prev) => {
             const newRoutines = { ...prev.routines };
             if (!newRoutines[phaseId]) newRoutines[phaseId] = {};
 
@@ -407,14 +420,14 @@ export function PlanProvider({ children }) {
             const currentDay = newRoutines[phaseId][dayId] || { exercises: [] };
             newRoutines[phaseId][dayId] = {
                 ...currentDay,
-                exercises: [...(currentDay.exercises || []), newEx]
+                exercises: [...(currentDay.exercises || []), newEx],
             };
             return { ...prev, routines: newRoutines };
         });
     };
 
     const deleteExercise = (phaseId, dayId, index) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const newRoutines = { ...prev.routines };
             if (!newRoutines[phaseId]?.[dayId]) return prev;
 
@@ -424,7 +437,7 @@ export function PlanProvider({ children }) {
             const currentDay = newRoutines[phaseId][dayId];
             newRoutines[phaseId][dayId] = {
                 ...currentDay,
-                exercises: currentDay.exercises.filter((_, i) => i !== index)
+                exercises: currentDay.exercises.filter((_, i) => i !== index),
             };
             return { ...prev, routines: newRoutines };
         });
@@ -433,7 +446,7 @@ export function PlanProvider({ children }) {
     const reorderExercises = (phaseId, dayId, fromIndex, toIndex) => {
         if (fromIndex === toIndex) return;
 
-        setPlanData(prev => {
+        setPlanData((prev) => {
             // Deep copy structure up to the exercises array
             const newRoutines = { ...prev.routines };
             if (!newRoutines[phaseId]) return prev;
@@ -478,7 +491,7 @@ export function PlanProvider({ children }) {
                         oldIdx = fromIndex;
                     } else if (fromIndex < toIndex) {
                         // Movido hacia abajo: los de [from+1..to] bajan 1
-                        oldIdx = (i > fromIndex && i <= toIndex) ? i : i === toIndex ? fromIndex : i;
+                        oldIdx = i > fromIndex && i <= toIndex ? i : i === toIndex ? fromIndex : i;
                         // Simplificación: recalcular
                         if (i >= fromIndex && i < toIndex) oldIdx = i + 1;
                         else if (i === toIndex) oldIdx = fromIndex;
@@ -521,7 +534,7 @@ export function PlanProvider({ children }) {
     };
 
     const moveExerciseToDay = (phaseId, fromDayId, exerciseIndex, toDayId) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             const newRoutines = { ...prev.routines };
             if (!newRoutines[phaseId]?.[fromDayId]) return prev;
 
@@ -543,10 +556,9 @@ export function PlanProvider({ children }) {
         });
     };
 
-
     // --- WORKOUT SESSION MANAGEMENT ---
     const startSession = (phaseId, dayId) => {
-        setPlanData(prev => ({
+        setPlanData((prev) => ({
             ...prev,
             activeSession: {
                 phaseId,
@@ -554,13 +566,13 @@ export function PlanProvider({ children }) {
                 startTime: Date.now(),
                 pauses: [], // Array of { start, end }
                 completedSets: {}, // Key: "exIndex-setIndex" -> true
-                lastSetContext: null // { exIndex, setIndex, timestamp } for Rest Timer
-            }
+                lastSetContext: null, // { exIndex, setIndex, timestamp } for Rest Timer
+            },
         }));
     };
 
     const toggleSessionPause = () => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             if (!prev.activeSession) return prev;
 
             const session = { ...prev.activeSession };
@@ -581,7 +593,10 @@ export function PlanProvider({ children }) {
                 return { ...prev, activeSession: { ...session, pauses: newPauses } };
             } else {
                 // Pause: Start new pause gap
-                return { ...prev, activeSession: { ...session, pauses: [...session.pauses, { start: now, end: null }] } };
+                return {
+                    ...prev,
+                    activeSession: { ...session, pauses: [...session.pauses, { start: now, end: null }] },
+                };
             }
         });
     };
@@ -620,40 +635,40 @@ export function PlanProvider({ children }) {
                 return {
                     exerciseIndex: parseInt(exIdx),
                     setIndex: parseInt(setIdx),
-                    timestamp: value.timestamp // The new timestamp
+                    timestamp: value.timestamp, // The new timestamp
                 };
-            })
+            }),
         };
 
         // 1. OPTIMISTIC UI UPDATE: Clear session immediately
-        setPlanData(prev => ({
+        setPlanData((prev) => ({
             ...prev,
-            activeSession: null
+            activeSession: null,
         }));
 
         // 2. BACKGROUND SYNC
         if (user) {
-            console.log("📤 Background Uploading Session...", log);
+            console.log('📤 Background Uploading Session...', log);
             // Fire and forget (Firestore handles offline queue)
             addDoc(collection(db, 'users', user.uid, 'history'), log)
-                .then(() => console.log("✅ Session Synced to Cloud"))
-                .catch(err => console.error("⚠️ Sync Warning (Offline?):", err));
+                .then(() => console.log('✅ Session Synced to Cloud'))
+                .catch((err) => console.error('⚠️ Sync Warning (Offline?):', err));
         } else {
             // If strictly local (no user), we might want to push to a local history array if we were supporting that.
             // But current architecture relies on historyList from Firestore listener.
             // Ideally, we'd update historyList locally too for true offline feel if auth is missing,
             // but given the requirement is about "not hanging", the optimistic clear above solves it.
-            console.warn("❌ No User for Cloud History");
+            console.warn('❌ No User for Cloud History');
         }
     };
 
     // Cancel without saving
     const cancelSession = () => {
-        setPlanData(prev => ({ ...prev, activeSession: null }));
+        setPlanData((prev) => ({ ...prev, activeSession: null }));
     };
 
     const toggleSetCompletion = (exerciseIndex, setIndex) => {
-        setPlanData(prev => {
+        setPlanData((prev) => {
             if (!prev.activeSession) return prev;
 
             const key = `${exerciseIndex}-${setIndex}`;
@@ -662,7 +677,7 @@ export function PlanProvider({ children }) {
 
             if (newCompleted[key]) {
                 delete newCompleted[key];
-                // If we uncheck, we might want to clear the timer context if it was this one? 
+                // If we uncheck, we might want to clear the timer context if it was this one?
                 // For now leaving as is to avoid complex undo logic.
             } else {
                 // Store Timestamp!
@@ -672,7 +687,7 @@ export function PlanProvider({ children }) {
                 lastSetContext = {
                     exerciseIndex,
                     setIndex,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
                 };
             }
 
@@ -681,8 +696,8 @@ export function PlanProvider({ children }) {
                 activeSession: {
                     ...prev.activeSession,
                     completedSets: newCompleted,
-                    lastSetContext
-                }
+                    lastSetContext,
+                },
             };
         });
     };
@@ -705,35 +720,62 @@ export function PlanProvider({ children }) {
         return svcDeleteCustomFood(user.uid, foodId);
     };
 
+    // Registrar sesión saltada/hecha fuera — crea entrada en historial con métricas vacías
+    // para que el día aparezca como "hecho" visualmente sin contaminar estadísticas.
+    const logSkippedSession = (phaseId, dayId, reason) => {
+        const log = {
+            id: Date.now(),
+            date: new Date().toISOString(),
+            phaseId,
+            dayId,
+            durationSeconds: 0,
+            startTime: Date.now(),
+            endTime: Date.now(),
+            pauses: [],
+            completedSets: {},
+            setLogs: [],
+            [reason]: true, // 'skipped' o 'doneElsewhere'
+        };
+
+        if (user) {
+            addDoc(collection(db, 'users', user.uid, 'history'), log)
+                .then(() => console.log(`✅ Session marked as ${reason}`))
+                .catch(console.error);
+        }
+    };
+
     return (
-        <PlanContext.Provider value={{
-            plan: { ...planData, history: historyList }, // MERGE history back in for consumers
-            customFoods,
-            addCustomFood,
-            editCustomFood,
-            removeCustomFood,
-            updateMealOption,
-            addMealOption,
-            deleteMealOption,
-            setSelectedOption,
-            updateUser,
-            setActivePhaseId,
-            logWeight,
-            updateExercise,
-            updatePhase,
-            addPhase,
-            deletePhase,
-            updateDayRoutine,
-            addExercise,
-            deleteExercise,
-            reorderExercises,
-            moveExerciseToDay,
-            startSession,
-            finishSession,
-            cancelSession,
-            toggleSessionPause,
-            toggleSetCompletion
-        }}>
+        <PlanContext.Provider
+            value={{
+                plan: { ...planData, history: historyList }, // MERGE history back in for consumers
+                customFoods,
+                addCustomFood,
+                editCustomFood,
+                removeCustomFood,
+                logSkippedSession,
+                updateMealOption,
+                addMealOption,
+                deleteMealOption,
+                setSelectedOption,
+                updateUser,
+                setActivePhaseId,
+                logWeight,
+                updateExercise,
+                updatePhase,
+                addPhase,
+                deletePhase,
+                updateDayRoutine,
+                addExercise,
+                deleteExercise,
+                reorderExercises,
+                moveExerciseToDay,
+                startSession,
+                finishSession,
+                cancelSession,
+                toggleSessionPause,
+                toggleSetCompletion,
+            }}
+        >
             {children}
         </PlanContext.Provider>
     );
