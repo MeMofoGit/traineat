@@ -32,7 +32,7 @@ import { unauthenticated } from '../lib/errors';
  */
 export const nightlyOFFSync = onSchedule(
   {
-    schedule: '0 3 * * *',
+    schedule: '0 3 * * 0', // Domingo 03:00 Madrid (semanal, no diario — ahorra ~85% en writes)
     timeZone: 'Europe/Madrid',
     region: 'europe-west1',
     memory: '2GiB',
