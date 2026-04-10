@@ -462,41 +462,64 @@ export default function Training() {
                 // ACTIVE SESSION
                 isSessionActiveHere ? (
                     <div className="sticky top-4 z-40 mb-6 animate-in slide-in-from-top-4">
-                        <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 p-4 rounded-2xl shadow-2xl flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={toggleSessionPause}
-                                    className={`p-3 rounded-full transition-all ${
-                                        plan.activeSession.pauses?.length > 0 &&
-                                        !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end
-                                            ? 'bg-amber-500/20 text-amber-500 animate-pulse' // Paused
-                                            : 'bg-emerald-500/20 text-emerald-400' // Running
-                                    }`}
-                                >
-                                    {plan.activeSession.pauses?.length > 0 &&
-                                    !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end ? (
-                                        <Play size={20} fill="currentColor" />
-                                    ) : (
-                                        <Pause size={20} fill="currentColor" />
-                                    )}
-                                </button>
-                                <div>
-                                    <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                        Tiempo Activo
+                        <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 p-4 rounded-2xl shadow-2xl">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={toggleSessionPause}
+                                        className={`p-3 rounded-full transition-all ${
+                                            plan.activeSession.pauses?.length > 0 &&
+                                            !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end
+                                                ? 'bg-amber-500/20 text-amber-500 animate-pulse'
+                                                : 'bg-emerald-500/20 text-emerald-400'
+                                        }`}
+                                    >
+                                        {plan.activeSession.pauses?.length > 0 &&
+                                        !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end ? (
+                                            <Play size={20} fill="currentColor" />
+                                        ) : (
+                                            <Pause size={20} fill="currentColor" />
+                                        )}
+                                    </button>
+                                    <div>
+                                        <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                            Tiempo Activo
+                                        </div>
+                                        <SessionTimer
+                                            startTime={plan.activeSession.startTime}
+                                            pauses={plan.activeSession.pauses}
+                                        />
                                     </div>
-                                    <SessionTimer
-                                        startTime={plan.activeSession.startTime}
-                                        pauses={plan.activeSession.pauses}
-                                    />
                                 </div>
+                                <button
+                                    onClick={finishSession}
+                                    className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-blue-500 transition-colors flex items-center gap-2"
+                                >
+                                    <Save size={14} />
+                                    Finalizar
+                                </button>
                             </div>
-                            <button
-                                onClick={finishSession}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-blue-500 transition-colors flex items-center gap-2"
-                            >
-                                <Save size={14} />
-                                Finalizar
-                            </button>
+                            {/* Progress bar de series completadas */}
+                            {(() => {
+                                const exercises = routine?.exercises || [];
+                                const totalSets = exercises.reduce((acc, ex) => acc + (parseInt(ex.sets) || 0), 0);
+                                const completedCount = Object.keys(plan.activeSession.completedSets || {}).length;
+                                const pct =
+                                    totalSets > 0 ? Math.min(100, Math.round((completedCount / totalSets) * 100)) : 0;
+                                return totalSets > 0 ? (
+                                    <div className="mt-3 flex items-center gap-3">
+                                        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300"
+                                                style={{ width: `${pct}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                                            {completedCount}/{totalSets} series
+                                        </span>
+                                    </div>
+                                ) : null;
+                            })()}
                         </div>
                     </div>
                 ) : null
