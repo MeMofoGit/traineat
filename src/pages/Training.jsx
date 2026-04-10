@@ -112,13 +112,19 @@ export default function Training() {
             if (ex) {
                 let seconds = 60;
                 const r = ex.rest?.toLowerCase() || '';
-                if (r.includes('m')) seconds = parseInt(r) * 60;
+                if (r === '0' || r === '') {
+                    // Superserie: rest=0 significa "sin descanso, pasa al siguiente"
+                    // No mostrar timer.
+                    seconds = 0;
+                } else if (r.includes('m')) seconds = parseInt(r) * 60;
                 else if (r.includes('s')) seconds = parseInt(r);
                 else if (!isNaN(parseInt(r))) seconds = parseInt(r);
 
-                setRestDuration(seconds);
-                setRestStartTime(timestamp);
-                setShowRestTimer(true);
+                if (seconds > 0) {
+                    setRestDuration(seconds);
+                    setRestStartTime(timestamp);
+                    setShowRestTimer(true);
+                }
             }
         }
     }, [plan.activeSession?.lastSetContext, routine?.exercises]);
@@ -624,8 +630,14 @@ export default function Training() {
                 </div>
 
                 {routine?.exercises?.map((ex, i) => {
+                    // Superserie detection: si rest="0", el siguiente ejercicio es su pareja
+                    const isSuperset = ex.rest === '0' || ex.rest === 0;
+                    const prevIsSuperset =
+                        i > 0 && (routine.exercises[i - 1]?.rest === '0' || routine.exercises[i - 1]?.rest === 0);
+                    const supersetGroup = ex.name?.match(/^([A-Z])\d\./)?.[1]; // "A" de "A1.", "B" de "B2."
+
                     // Progress Logic
-                    const totalSets = parseInt(ex.sets) || 3; // Default 3 if parsing fails. Handle range "3-4"? Take max? Let's take first digit.
+                    const totalSets = parseInt(ex.sets) || 3;
 
                     // Helper to check set status
                     const isSetDone = (setIdx) => {
@@ -642,128 +654,148 @@ export default function Training() {
                     const isActive = plan.activeSession && !isComplete && setsDoneCount > 0;
 
                     return (
-                        <div
-                            key={i}
-                            className={`rounded-2xl p-5 border shadow-sm relative group transition-all duration-500 ${
-                                isComplete
-                                    ? 'bg-emerald-900/10 border-emerald-500/30'
-                                    : isActive
-                                      ? 'bg-blue-900/10 border-blue-500/30'
-                                      : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                            }`}
-                        >
-                            {/* Completion glow */}
-                            {isComplete && (
-                                <div className="absolute inset-0 bg-emerald-500/5 rounded-2xl pointer-events-none" />
+                        <React.Fragment key={i}>
+                            {/* Superserie connector: une A1 con A2 visualmente */}
+                            {prevIsSuperset && (
+                                <div className="flex items-center justify-center -my-2 relative z-10">
+                                    <div className="bg-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full border border-amber-500/30">
+                                        + sin descanso
+                                    </div>
+                                </div>
                             )}
-
-                            <div className="flex justify-between items-start mb-3 gap-3 relative z-10">
-                                <input
-                                    className={`font-bold text-lg bg-transparent outline-none w-full border-b border-transparent focus:border-blue-500/50 transition-all placeholder-slate-600 ${isComplete ? 'text-emerald-400 line-through decoration-emerald-500/50' : 'text-slate-100'}`}
-                                    value={ex.name}
-                                    onChange={(e) =>
-                                        updateExercise(activePhaseId, activeDay, i, { name: e.target.value })
-                                    }
-                                    placeholder="Nombre Ejercicio"
-                                />
-                                <button
-                                    onClick={() => setViewingExercise(ex)}
-                                    className="p-2 text-slate-500 hover:text-blue-400 transition-colors"
-                                >
-                                    <Info size={18} />
-                                </button>
-                                <div className="flex gap-1 shrink-0">
-                                    {/* Reorder Buttons */}
-                                    <button
-                                        onClick={() => i > 0 && reorderExercises(activePhaseId, activeDay, i, i - 1)}
-                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
-                                        disabled={i === 0}
-                                    >
-                                        <ArrowUp size={14} />
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            i < routine.exercises.length - 1 &&
-                                            reorderExercises(activePhaseId, activeDay, i, i + 1)
-                                        }
-                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
-                                        disabled={i === routine.exercises.length - 1}
-                                    >
-                                        <ArrowDown size={14} />
-                                    </button>
-
-                                    {/* Move to... */}
-                                    <button
-                                        onClick={() => setMovingExIndex(i)}
-                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-green-400 hover:bg-slate-800 transition-all ml-1"
-                                    >
-                                        <ArrowRightCircle size={14} />
-                                    </button>
-
-                                    {/* Delete */}
-                                    <button
-                                        onClick={() => deleteExercise(activePhaseId, activeDay, i)}
-                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-red-400 hover:bg-slate-800 transition-all ml-1"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Interactive Sets */}
-                            <div className="mb-4">
-                                <div className="flex flex-wrap gap-2">
-                                    {Array.from({ length: totalSets }).map((_, setIdx) => {
-                                        const done = isSetDone(setIdx);
-                                        return (
-                                            <button
-                                                key={setIdx}
-                                                onClick={() => toggleSetCompletion(i, setIdx)}
-                                                disabled={!plan.activeSession}
-                                                className={`h-8 w-12 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-all ${
-                                                    done
-                                                        ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-500/20 scale-105'
-                                                        : plan.activeSession
-                                                          ? 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                                                          : 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                                                }`}
-                                            >
-                                                {done ? <Check size={16} strokeWidth={4} /> : setIdx + 1}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                {!plan.activeSession && !completedSession && (
-                                    <p className="text-[10px] text-slate-500 mt-2 italic">
-                                        Inicia el entreno para marcar series.
-                                    </p>
+                            <div
+                                className={`rounded-2xl p-5 border shadow-sm relative group transition-all duration-500 ${
+                                    isComplete
+                                        ? 'bg-emerald-900/10 border-emerald-500/30'
+                                        : isActive
+                                          ? 'bg-blue-900/10 border-blue-500/30'
+                                          : isSuperset || prevIsSuperset
+                                            ? 'bg-slate-800 border-amber-700/30 hover:border-amber-600/50'
+                                            : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                                }`}
+                            >
+                                {/* Superserie badge */}
+                                {isSuperset && supersetGroup && (
+                                    <div className="absolute -top-2 right-4 bg-amber-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full">
+                                        SUPERSERIE {supersetGroup}
+                                    </div>
                                 )}
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                {/* Stats Editable - Reps & Rest (Sets is implied by bubbles now, but kept for editing config) */}
-                                <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 p-2 rounded-lg">
-                                    <Repeat size={14} />
+                                {/* Completion glow */}
+                                {isComplete && (
+                                    <div className="absolute inset-0 bg-emerald-500/5 rounded-2xl pointer-events-none" />
+                                )}
+
+                                <div className="flex justify-between items-start mb-3 gap-3 relative z-10">
                                     <input
-                                        className="bg-transparent outline-none w-full text-slate-200 font-bold"
-                                        value={ex.reps}
+                                        className={`font-bold text-lg bg-transparent outline-none w-full border-b border-transparent focus:border-blue-500/50 transition-all placeholder-slate-600 ${isComplete ? 'text-emerald-400 line-through decoration-emerald-500/50' : 'text-slate-100'}`}
+                                        value={ex.name}
                                         onChange={(e) =>
-                                            updateExercise(activePhaseId, activeDay, i, { reps: e.target.value })
+                                            updateExercise(activePhaseId, activeDay, i, { name: e.target.value })
                                         }
+                                        placeholder="Nombre Ejercicio"
                                     />
+                                    <button
+                                        onClick={() => setViewingExercise(ex)}
+                                        className="p-2 text-slate-500 hover:text-blue-400 transition-colors"
+                                    >
+                                        <Info size={18} />
+                                    </button>
+                                    <div className="flex gap-1 shrink-0">
+                                        {/* Reorder Buttons */}
+                                        <button
+                                            onClick={() =>
+                                                i > 0 && reorderExercises(activePhaseId, activeDay, i, i - 1)
+                                            }
+                                            className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                                            disabled={i === 0}
+                                        >
+                                            <ArrowUp size={14} />
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                i < routine.exercises.length - 1 &&
+                                                reorderExercises(activePhaseId, activeDay, i, i + 1)
+                                            }
+                                            className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                                            disabled={i === routine.exercises.length - 1}
+                                        >
+                                            <ArrowDown size={14} />
+                                        </button>
+
+                                        {/* Move to... */}
+                                        <button
+                                            onClick={() => setMovingExIndex(i)}
+                                            className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-green-400 hover:bg-slate-800 transition-all ml-1"
+                                        >
+                                            <ArrowRightCircle size={14} />
+                                        </button>
+
+                                        {/* Delete */}
+                                        <button
+                                            onClick={() => deleteExercise(activePhaseId, activeDay, i)}
+                                            className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-red-400 hover:bg-slate-800 transition-all ml-1"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 p-2 rounded-lg">
-                                    <Timer size={14} />
-                                    <input
-                                        className="bg-transparent outline-none w-full text-slate-200 font-bold"
-                                        value={ex.rest}
-                                        onChange={(e) =>
-                                            updateExercise(activePhaseId, activeDay, i, { rest: e.target.value })
-                                        }
-                                    />
+
+                                {/* Interactive Sets */}
+                                <div className="mb-4">
+                                    <div className="flex flex-wrap gap-2">
+                                        {Array.from({ length: totalSets }).map((_, setIdx) => {
+                                            const done = isSetDone(setIdx);
+                                            return (
+                                                <button
+                                                    key={setIdx}
+                                                    onClick={() => toggleSetCompletion(i, setIdx)}
+                                                    disabled={!plan.activeSession}
+                                                    className={`h-8 w-12 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-all ${
+                                                        done
+                                                            ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-500/20 scale-105'
+                                                            : plan.activeSession
+                                                              ? 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                                                              : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    {done ? <Check size={16} strokeWidth={4} /> : setIdx + 1}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {!plan.activeSession && !completedSession && (
+                                        <p className="text-[10px] text-slate-500 mt-2 italic">
+                                            Inicia el entreno para marcar series.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    {/* Stats Editable - Reps & Rest (Sets is implied by bubbles now, but kept for editing config) */}
+                                    <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 p-2 rounded-lg">
+                                        <Repeat size={14} />
+                                        <input
+                                            className="bg-transparent outline-none w-full text-slate-200 font-bold"
+                                            value={ex.reps}
+                                            onChange={(e) =>
+                                                updateExercise(activePhaseId, activeDay, i, { reps: e.target.value })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 p-2 rounded-lg">
+                                        <Timer size={14} />
+                                        <input
+                                            className="bg-transparent outline-none w-full text-slate-200 font-bold"
+                                            value={ex.rest}
+                                            onChange={(e) =>
+                                                updateExercise(activePhaseId, activeDay, i, { rest: e.target.value })
+                                            }
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </React.Fragment>
                     );
                 })}
 
