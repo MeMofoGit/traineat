@@ -41,6 +41,14 @@ const PROGRESS_LOG_EVERY = 50000; // log cada 50k líneas procesadas
 // llegue la internacionalización.
 const TARGET_COUNTRY_TAGS = ['en:spain', 'en:españa'];
 
+// Substrings que usamos como pre-filtro RÁPIDO antes del JSON.parse caro.
+// El dump está ordenado por código de producto: la mayoría de líneas son
+// productos no-españoles (Francia, Alemania, etc. — hay millones). Descartar
+// antes del parse 99% de líneas con un includes() barato baja el tiempo de
+// procesamiento de >100min a ~10min. Falsos positivos son inofensivos: el
+// `shouldKeepProduct` real verifica el shape después.
+const COUNTRY_PREFILTER_SUBSTRINGS = TARGET_COUNTRY_TAGS.map((t) => `"${t}"`);
+
 // User-Agent obligatorio según las normas de OFF para clientes.
 const OFF_USER_AGENT = 'FitnessApp/1.0 (https://fitness-6d907.web.app) - nightly-mirror';
 
@@ -147,10 +155,28 @@ export async function runOffSync(opts: SyncOptions = {}): Promise<SyncResult> {
           linesRead,
           productsAccepted,
           itemsWritten,
+          linesParsed,
         });
       }
 
-      // Parse defensivo
+      // PRE-FILTER barato por substring antes del parse caro.
+      // Descartamos líneas que claramente no contienen ningún tag de país
+      // objetivo. JSON.parse sobre líneas de 20 KB es ~1000x más caro que
+      // includes(). El dump tiene millones de líneas no-españolas;
+      // saltarlas con un check de substring acelera todo el sync x10-x20.
+      let mightMatch = false;
+      for (const sub of COUNTRY_PREFILTER_SUBSTRINGS) {
+        if (line.includes(sub)) {
+          mightMatch = true;
+          break;
+        }
+      }
+      if (!mightMatch) {
+        productsSkipped++;
+        continue;
+      }
+
+      // Parse defensivo (solo para líneas que pasaron el pre-filter)
       let raw: RawDumpProduct;
       try {
         raw = JSON.parse(line) as RawDumpProduct;
@@ -161,7 +187,7 @@ export async function runOffSync(opts: SyncOptions = {}): Promise<SyncResult> {
         continue;
       }
 
-      // Filtros
+      // Filtros completos (verifica shape real, no solo substring)
       if (!shouldKeepProduct(raw)) {
         productsSkipped++;
         continue;
