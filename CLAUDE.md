@@ -151,6 +151,7 @@ Las imágenes/gifs se mapean desde `GIF_MAP` en `plan.js` durante la migración 
 
 - **Componentes funcionales** con hooks. Sin clases.
 - **Tailwind only** para estilos. No CSS modules ni styled-components. Paleta: slate (fondo), blue (nutrición), emerald (entrenamiento), rose/amber/yellow (macros).
+- **Modales**: siempre renderizar con `createPortal(jsx, document.body)`. Esto garantiza que el modal quede después del nav inferior en el DOM y lo tape sin hacks de z-index ni padding. El nav del Layout es `z-50` y posterior en el DOM al `<Outlet/>`; sin portal, los modales quedan debajo del nav en móvil. Patrón ya aplicado en `CustomFoodModal.jsx` como referencia.
 - **Iconos**: `lucide-react`. Importa solo los que uses.
 - **Strings de UI en español**. Código y nombres de variables en inglés.
 - **Sin TypeScript**: confía en defaults y `?.` para acceso seguro.
