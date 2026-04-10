@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Clock, Battery, Calendar, ArrowRight, Dumbbell, Edit2, Check, X, Target } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Clock, Battery, Calendar, ArrowRight, Dumbbell, Edit2, Check, X, Target, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSchedule } from '../hooks/useSchedule';
 import { usePlan } from '../hooks/usePlan';
@@ -11,7 +11,6 @@ export default function Dashboard() {
 
     return (
         <div className="p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24">
-
             {/* Header */}
             <header className="flex justify-between items-end">
                 <div>
@@ -31,11 +30,7 @@ export default function Dashboard() {
             </header>
 
             {/* Phase Selector */}
-            <PhaseSelector
-                phases={plan.phases || []}
-                activeId={plan.activePhaseId}
-                onChange={setActivePhaseId}
-            />
+            <PhaseSelector phases={plan.phases || []} activeId={plan.activePhaseId} onChange={setActivePhaseId} />
 
             {/* Smart Analysis Card (Next Meal) */}
             <section className="bg-slate-800/50 rounded-3xl p-6 border border-slate-700/50 shadow-lg backdrop-blur-sm relative overflow-hidden group hover:border-blue-500/30 transition-all">
@@ -51,20 +46,25 @@ export default function Dashboard() {
                         </div>
 
                         <div className="space-y-2 mb-6">
-                            <h3 className="text-2xl font-bold text-white">
-                                {nextEvent.label}
-                            </h3>
+                            <h3 className="text-2xl font-bold text-white">{nextEvent.label}</h3>
 
                             <div className="text-slate-400 leading-relaxed text-sm">
                                 <p className="mb-2 italic opacity-80">{nextEvent.details.goal}</p>
                                 {(() => {
-                                    const activeOption = nextEvent.details.options?.[nextEvent.details.selectedOptionIndex || 0];
+                                    const activeOption =
+                                        nextEvent.details.options?.[nextEvent.details.selectedOptionIndex || 0];
                                     const items = activeOption?.items || [];
                                     if (items.length === 0) return null;
                                     return (
                                         <ul>
                                             {items.slice(0, 2).map((item, i) => (
-                                                <li key={i}>• {item.name} <span className="text-slate-500">({item.quantity}{item.unit})</span></li>
+                                                <li key={i}>
+                                                    • {item.name}{' '}
+                                                    <span className="text-slate-500">
+                                                        ({item.quantity}
+                                                        {item.unit})
+                                                    </span>
+                                                </li>
                                             ))}
                                             {items.length > 2 && <li>... y más</li>}
                                         </ul>
@@ -93,18 +93,18 @@ export default function Dashboard() {
 
                 <div className="flex items-center gap-3 mb-4 text-emerald-400">
                     <Dumbbell size={20} />
-                    <h2 className="font-semibold uppercase tracking-wide text-sm">
-                        Entrenamiento de Hoy
-                    </h2>
+                    <h2 className="font-semibold uppercase tracking-wide text-sm">Entrenamiento de Hoy</h2>
                 </div>
 
                 {activeTraining.routine ? (
                     <>
                         <div className="mb-6">
                             <h3 className="text-2xl font-bold text-white mb-1">
-                                {activeTraining.routine.label || "Rutina sin nombre"}
+                                {activeTraining.routine.label || 'Rutina sin nombre'}
                             </h3>
-                            <p className="text-slate-400 text-sm">{activeTraining.routine.focus || "Sin enfoque definido"}</p>
+                            <p className="text-slate-400 text-sm">
+                                {activeTraining.routine.focus || 'Sin enfoque definido'}
+                            </p>
                             <div className="mt-4 flex gap-2">
                                 <span className="text-xs bg-slate-900 text-slate-300 px-3 py-1 rounded-full border border-slate-700">
                                     {activeTraining.routine.exercises?.length || 0} Ejercicios
@@ -126,18 +126,19 @@ export default function Dashboard() {
                 )}
             </section>
 
+            {/* Weekly Progress */}
+            <WeeklyProgress plan={plan} />
 
-            {/* Stats Grid replaced by Weight Tracker */}
+            {/* Weight Tracker */}
             <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800">
                 <WeightTracker />
             </div>
-
         </div>
     );
 }
 
 function PhaseSelector({ phases, activeId, onChange }) {
-    const active = phases.find(p => p.id === activeId) || phases[0];
+    const active = phases.find((p) => p.id === activeId) || phases[0];
     if (!active) return null;
 
     return (
@@ -152,8 +153,10 @@ function PhaseSelector({ phases, activeId, onChange }) {
                     onChange={(e) => onChange(parseInt(e.target.value, 10))}
                     className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold rounded-lg px-2 py-1 outline-none focus:border-amber-500 cursor-pointer"
                 >
-                    {phases.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                    {phases.map((p) => (
+                        <option key={p.id} value={p.id}>
+                            {p.name}
+                        </option>
                     ))}
                 </select>
             </div>
@@ -165,7 +168,9 @@ function PhaseSelector({ phases, activeId, onChange }) {
                 {(active.dates?.start || active.dates?.end) && (
                     <div className="flex justify-between text-slate-400">
                         <span>Fechas</span>
-                        <span className="font-mono text-slate-300">{(active.dates?.start || '?')} → {(active.dates?.end || '?')}</span>
+                        <span className="font-mono text-slate-300">
+                            {active.dates?.start || '?'} → {active.dates?.end || '?'}
+                        </span>
                     </div>
                 )}
                 {active.focus && (
@@ -204,8 +209,8 @@ function WeightTracker() {
     // Pad with placeholders if less than 2 points to show a line
     // actually polyline needs at least 2 points to look good, or just dots.
 
-    const minW = Math.min(...points.map(p => p.weight)) - 1;
-    const maxW = Math.max(...points.map(p => p.weight)) + 1;
+    const minW = Math.min(...points.map((p) => p.weight)) - 1;
+    const maxW = Math.max(...points.map((p) => p.weight)) + 1;
     const height = 80; // Increased height for labels
     const width = 100;
 
@@ -216,11 +221,13 @@ function WeightTracker() {
         return chartH - ((w - minW) / (maxW - minW)) * chartH;
     };
 
-    const polylineMap = points.map((p, i) => {
-        const x = (i / (Math.max(points.length - 1, 1))) * width;
-        const y = normalize(p.weight);
-        return `${x},${y}`;
-    }).join(' ');
+    const polylineMap = points
+        .map((p, i) => {
+            const x = (i / Math.max(points.length - 1, 1)) * width;
+            const y = normalize(p.weight);
+            return `${x},${y}`;
+        })
+        .join(' ');
 
     const handleLog = () => {
         if (weightInput) logWeight(weightInput);
@@ -248,7 +255,8 @@ function WeightTracker() {
                         <span className="text-sm font-bold text-slate-500">kg</span>
                         {diff !== 0 && (
                             <span className={`text-xs font-bold ${diff < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                                {diff > 0 ? '+' : ''}
+                                {diff.toFixed(1)}
                             </span>
                         )}
                     </div>
@@ -266,17 +274,26 @@ function WeightTracker() {
                                     autoFocus
                                 />
                                 <span className="text-slate-600">cm</span>
-                                <button onClick={handleSaveHeight} className="text-emerald-400 bg-emerald-900/30 p-1 rounded hover:bg-emerald-900/50">
+                                <button
+                                    onClick={handleSaveHeight}
+                                    className="text-emerald-400 bg-emerald-900/30 p-1 rounded hover:bg-emerald-900/50"
+                                >
                                     <Check size={12} />
                                 </button>
-                                <button onClick={() => setIsEditingHeight(false)} className="text-slate-400 hover:text-white">
+                                <button
+                                    onClick={() => setIsEditingHeight(false)}
+                                    className="text-slate-400 hover:text-white"
+                                >
                                     <X size={12} />
                                 </button>
                             </div>
                         ) : (
                             <div className="flex items-center gap-2 group">
                                 <span>Altura: {plan.user.height}cm</span>
-                                <button onClick={() => setIsEditingHeight(true)} className="opacity-50 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-purple-400">
+                                <button
+                                    onClick={() => setIsEditingHeight(true)}
+                                    className="opacity-50 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-purple-400"
+                                >
                                     <Edit2 size={12} />
                                 </button>
                             </div>
@@ -300,8 +317,18 @@ function WeightTracker() {
                         </div>
 
                         <div className="flex gap-2">
-                            <button onClick={() => setIsLogging(false)} className="flex-1 bg-slate-800 text-slate-400 text-xs py-1.5 rounded font-bold">Cancelar</button>
-                            <button onClick={handleLog} className="flex-1 bg-purple-600 text-white text-xs py-1.5 rounded font-bold">Guardar</button>
+                            <button
+                                onClick={() => setIsLogging(false)}
+                                className="flex-1 bg-slate-800 text-slate-400 text-xs py-1.5 rounded font-bold"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleLog}
+                                className="flex-1 bg-purple-600 text-white text-xs py-1.5 rounded font-bold"
+                            >
+                                Guardar
+                            </button>
                         </div>
                     </div>
                 ) : (
@@ -339,7 +366,7 @@ function WeightTracker() {
 
                     {/* Points & Labels */}
                     {points.map((p, i) => {
-                        const x = (i / (Math.max(points.length - 1, 1))) * width;
+                        const x = (i / Math.max(points.length - 1, 1)) * width;
                         const y = normalize(p.weight);
 
                         // Parse date nicely (e.g. "18/02")
@@ -348,12 +375,7 @@ function WeightTracker() {
 
                         return (
                             <g key={i}>
-                                <circle
-                                    cx={x}
-                                    cy={y}
-                                    r="2"
-                                    className="fill-slate-900 stroke-purple-400 stroke-2"
-                                />
+                                <circle cx={x} cy={y} r="2" className="fill-slate-900 stroke-purple-400 stroke-2" />
                                 {/* Date Label */}
                                 <text
                                     x={x}
@@ -366,7 +388,7 @@ function WeightTracker() {
                                     {dateLabel}
                                 </text>
                             </g>
-                        )
+                        );
                     })}
                 </svg>
             </div>
@@ -374,3 +396,107 @@ function WeightTracker() {
     );
 }
 
+const DAY_SHORTS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const DAY_IDS = [1, 2, 3, 4, 5, 6, 0]; // Lun-Dom
+
+function WeeklyProgress({ plan }) {
+    const activePhaseId = plan.activePhaseId || plan.phases?.[0]?.id || 1;
+    const routines = plan.routines?.[activePhaseId] || {};
+    const history = plan.history || [];
+
+    const { days, completed, total } = useMemo(() => {
+        const now = new Date();
+        const todayDayId = now.getDay();
+
+        // Semana ISO: lunes a domingo
+        const weekStart = new Date(now);
+        const dayOfWeek = weekStart.getDay();
+        const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        weekStart.setDate(weekStart.getDate() + diff);
+        weekStart.setHours(0, 0, 0, 0);
+
+        const weekSessions = history.filter((h) => {
+            if (!h.date) return false;
+            return new Date(h.date) >= weekStart && h.phaseId === activePhaseId;
+        });
+        const completedDayIds = new Set(weekSessions.map((h) => h.dayId));
+
+        let totalWorkouts = 0;
+        let completedWorkouts = 0;
+
+        const dayStates = DAY_IDS.map((dayId, i) => {
+            const routine = routines[dayId];
+            const hasExercises = routine?.exercises?.length > 0;
+            const isCompleted = completedDayIds.has(dayId);
+            const isToday = dayId === todayDayId;
+            const isPast = DAY_IDS.indexOf(dayId) < DAY_IDS.indexOf(todayDayId);
+
+            if (hasExercises) totalWorkouts++;
+            if (hasExercises && isCompleted) completedWorkouts++;
+
+            return {
+                label: DAY_SHORTS[i],
+                dayId,
+                hasExercises,
+                isCompleted,
+                isToday,
+                isPast,
+                isSkipped: !isCompleted && isPast && hasExercises,
+            };
+        });
+
+        return { days: dayStates, completed: completedWorkouts, total: totalWorkouts };
+    }, [history, routines, activePhaseId]);
+
+    if (total === 0) return null;
+
+    const pct = Math.round((completed / total) * 100);
+
+    return (
+        <section className="bg-slate-800/30 rounded-3xl p-5 border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-slate-300">
+                    <TrendingUp size={16} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Esta semana</span>
+                </div>
+                <span className="text-xs font-mono text-slate-400">
+                    {completed}/{total} entrenos
+                </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-2 bg-slate-800 rounded-full mb-4 overflow-hidden">
+                <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+
+            {/* Day dots */}
+            <div className="flex justify-between">
+                {days.map((d) => (
+                    <div key={d.dayId} className="flex flex-col items-center gap-1.5">
+                        <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                d.isCompleted
+                                    ? 'bg-emerald-600 text-white'
+                                    : d.isToday
+                                      ? 'bg-blue-600 text-white ring-2 ring-blue-400/50'
+                                      : d.isSkipped
+                                        ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
+                                        : d.hasExercises
+                                          ? 'bg-slate-800 text-slate-500 border border-slate-700'
+                                          : 'bg-slate-900 text-slate-600'
+                            }`}
+                        >
+                            {d.isCompleted ? <Check size={14} /> : d.label}
+                        </div>
+                        <span className={`text-[9px] ${d.isToday ? 'text-blue-400 font-bold' : 'text-slate-600'}`}>
+                            {d.hasExercises ? routines[d.dayId]?.label?.slice(0, 5) || '•' : 'Rest'}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
