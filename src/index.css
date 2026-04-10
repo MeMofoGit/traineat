@@ -53,3 +53,12 @@ body {
   scrollbar-width: none;
   /* Firefox */
 }
+
+/* Timer blink: parpadeo del contenedor en los últimos 10s y overtime */
+@keyframes timer-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-timer-blink {
+  animation: timer-blink 0.8s ease-in-out infinite;
+}

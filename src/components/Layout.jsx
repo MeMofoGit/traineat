@@ -1,14 +1,27 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Utensils, Dumbbell, User } from 'lucide-react';
 
 export default function Layout() {
     const { pathname } = useLocation();
+    const navRef = useRef(null);
 
     // Scroll to top al cambiar de página
     useEffect(() => {
         window.scrollTo(0, 0);
     }, [pathname]);
+
+    // Publicar altura real del nav como CSS variable para que otros componentes
+    // (ej: rest timer overlay) se posicionen pixel-perfect encima.
+    useEffect(() => {
+        const nav = navRef.current;
+        if (!nav) return;
+        const update = () => document.documentElement.style.setProperty('--nav-height', `${nav.offsetHeight}px`);
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(nav);
+        return () => ro.disconnect();
+    }, []);
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100 pb-20 font-sans">
@@ -20,7 +33,10 @@ export default function Layout() {
             </main>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 z-50">
+            <nav
+                ref={navRef}
+                className="fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 z-50"
+            >
                 <div className="max-w-md mx-auto flex justify-around items-center p-4">
                     <NavItem to="/" icon={<Home size={24} />} label="Inicio" />
                     <NavItem to="/diet" icon={<Utensils size={24} />} label="Dieta" />

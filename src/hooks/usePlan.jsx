@@ -47,6 +47,12 @@ export function PlanProvider({ children }) {
             parsed.activePhaseId = parsed.phases[0]?.id || PLAN_DATA.activePhaseId || 1;
         }
 
+        // Migration: trainingTime — hora del entreno (leída del schedule si existe)
+        if (!parsed.trainingTime) {
+            const trainingSlot = parsed.schedule?.default?.find((s) => s.type === 'training');
+            parsed.trainingTime = trainingSlot?.time || '13:00';
+        }
+
         // Migration: User profile fields used by useMacros / AI context
         parsed.user = {
             ...PLAN_DATA.user,
@@ -196,7 +202,8 @@ export function PlanProvider({ children }) {
         });
 
         return () => unsubAuth();
-    }, []); // Only run once on mount
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run once on mount — planData is read for migration, not reactive
 
     // 2. PERSISTENCE (Local + Cloud)
     // Debounce cloud saves to avoid hitting write limits or spamming
@@ -307,6 +314,10 @@ export function PlanProvider({ children }) {
             ...prev,
             user: { ...prev.user, ...newFields },
         }));
+    };
+
+    const updateTrainingTime = (time) => {
+        setPlanData((prev) => ({ ...prev, trainingTime: time }));
     };
 
     const setActivePhaseId = (phaseId) => {
@@ -758,6 +769,7 @@ export function PlanProvider({ children }) {
                 deleteMealOption,
                 setSelectedOption,
                 updateUser,
+                updateTrainingTime,
                 setActivePhaseId,
                 logWeight,
                 updateExercise,

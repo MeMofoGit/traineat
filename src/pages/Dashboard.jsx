@@ -17,10 +17,16 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useSchedule } from '../hooks/useSchedule';
 import { usePlan } from '../hooks/usePlan';
+import { assignMealRoles, TIMING_ROLES } from '../utils/nutrientTiming';
 
 export default function Dashboard() {
     const { now, currentPhase, nextEvent, activeTraining } = useSchedule();
     const { plan, setActivePhaseId } = usePlan();
+    const mealRoles = useMemo(
+        () => assignMealRoles(plan.schedule?.default, plan.trainingTime),
+        [plan.schedule, plan.trainingTime]
+    );
+    const nextEventRole = nextEvent ? mealRoles[nextEvent.id] : null;
     const navigate = useNavigate();
 
     return (
@@ -72,7 +78,20 @@ export default function Dashboard() {
                         </div>
 
                         <div className="space-y-2 mb-6">
-                            <h3 className="text-2xl font-bold text-white">{nextEvent.label}</h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-2xl font-bold text-white">{nextEvent.label}</h3>
+                                {nextEventRole && nextEventRole !== 'normal' && TIMING_ROLES[nextEventRole] && (
+                                    <span
+                                        className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                            nextEventRole === 'pre'
+                                                ? 'bg-amber-900/40 text-amber-400 border border-amber-700/40'
+                                                : 'bg-emerald-900/40 text-emerald-400 border border-emerald-700/40'
+                                        }`}
+                                    >
+                                        {TIMING_ROLES[nextEventRole].label}
+                                    </span>
+                                )}
+                            </div>
 
                             <div className="text-slate-400 leading-relaxed text-sm">
                                 <p className="mb-2 italic opacity-80">{nextEvent.details.goal}</p>
@@ -427,10 +446,10 @@ const DAY_IDS = [1, 2, 3, 4, 5, 6, 0]; // Lun-Dom
 
 function WeeklyProgress({ plan }) {
     const activePhaseId = plan.activePhaseId || plan.phases?.[0]?.id || 1;
-    const routines = plan.routines?.[activePhaseId] || {};
-    const history = plan.history || [];
 
     const { days, completed, total } = useMemo(() => {
+        const routines = plan.routines?.[activePhaseId] || {};
+        const history = plan.history || [];
         const now = new Date();
         const todayDayId = now.getDay();
 
@@ -472,7 +491,7 @@ function WeeklyProgress({ plan }) {
         });
 
         return { days: dayStates, completed: completedWorkouts, total: totalWorkouts };
-    }, [history, routines, activePhaseId]);
+    }, [plan.history, plan.routines, activePhaseId]);
 
     const navigate = useNavigate();
 
@@ -530,7 +549,9 @@ function WeeklyProgress({ plan }) {
                             {d.isCompleted ? <Check size={14} /> : d.label}
                         </div>
                         <span className={`text-[9px] ${d.isToday ? 'text-blue-400 font-bold' : 'text-slate-600'}`}>
-                            {d.hasExercises ? routines[d.dayId]?.label?.slice(0, 5) || '•' : 'Rest'}
+                            {d.hasExercises
+                                ? plan.routines?.[activePhaseId]?.[d.dayId]?.label?.slice(0, 5) || '•'
+                                : 'Rest'}
                         </span>
                     </div>
                 ))}

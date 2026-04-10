@@ -21,50 +21,75 @@
 import { FOOD_DATABASE } from '../data/food_database';
 
 /**
- * Calcula la similaridad entre dos perfiles de macros (0 = opuesto, 1 = idéntico).
+ * Calcula la similaridad entre dos perfiles de macros per 100g (0 = opuesto, 1 = idéntico).
  *
- * Usa ratios normalizados de P/C/G (qué porcentaje del total de macros es cada
- * uno) en lugar de valores absolutos. Así "100g pollo (23P/0C/1F)" y "150g pollo
- * (23P/0C/1F)" tienen similaridad 1.0 (misma proporción, diferente cantidad).
+ * Combina dos señales (50/50):
+ *   1. Distancia euclidiana de valores absolutos per 100g (P, C, G),
+ *      normalizada contra un rango máximo razonable (50P, 80C, 50G).
+ *   2. Distancia euclidiana de ratios (qué porcentaje del total es cada macro),
+ *      para penalizar alimentos del mismo rango pero perfil distinto.
  *
- * La distancia euclidiana de los 3 ratios se normaliza a [0, 1] donde sqrt(2)
- * es la distancia máxima posible.
+ * Un producto de categoría "protein" pondera más la diferencia en proteína,
+ * etc. (vía el parámetro `category` opcional).
  *
- * @param {{ protein: number, carbs: number, fat: number }} a
- * @param {{ protein: number, carbs: number, fat: number }} b
+ * @param {{ protein: number, carbs: number, fat: number, calories?: number }} a - macros per 100g
+ * @param {{ protein: number, carbs: number, fat: number, calories?: number }} b - macros per 100g
+ * @param {string} [category] - categoría del alimento original para ponderar
  * @returns {number} 0-1
  */
-export function macroSimilarity(a, b) {
-    const totalA = (a.protein || 0) + (a.carbs || 0) + (a.fat || 0);
-    const totalB = (b.protein || 0) + (b.carbs || 0) + (b.fat || 0);
+export function macroSimilarity(a, b, category) {
+    const pa = a.protein || 0,
+        ca = a.carbs || 0,
+        fa = a.fat || 0;
+    const pb = b.protein || 0,
+        cb = b.carbs || 0,
+        fb = b.fat || 0;
+    const totalA = pa + ca + fa;
+    const totalB = pb + cb + fb;
     if (totalA === 0 || totalB === 0) return 0;
 
-    const rA = { p: a.protein / totalA, c: a.carbs / totalA, f: a.fat / totalA };
-    const rB = { p: b.protein / totalB, c: b.carbs / totalB, f: b.fat / totalB };
+    // Pesos por categoría: potencia la diferencia del macro dominante
+    const w = { p: 1, c: 1, f: 1 };
+    if (category === 'protein') w.p = 2;
+    else if (category === 'carbs') w.c = 2;
+    else if (category === 'fat') w.f = 2;
 
-    const dist = Math.sqrt(
-        (rA.p - rB.p) ** 2 +
-        (rA.c - rB.c) ** 2 +
-        (rA.f - rB.f) ** 2
+    // 1) Distancia absoluta per 100g (normalizada contra rangos máximos típicos)
+    const maxP = 50,
+        maxC = 80,
+        maxF = 50;
+    const absDist = Math.sqrt(
+        w.p * ((pa - pb) / maxP) ** 2 + w.c * ((ca - cb) / maxC) ** 2 + w.f * ((fa - fb) / maxF) ** 2
     );
+    const maxAbsDist = Math.sqrt(w.p + w.c + w.f); // worst case: all diffs = 1
+    const absSim = Math.max(0, 1 - absDist / maxAbsDist);
 
-    // sqrt(2) ≈ 1.414 es la distancia máxima teórica
-    return Math.max(0, 1 - dist / Math.SQRT2);
+    // 2) Distancia de ratios (perfil proporcional)
+    const rA = { p: pa / totalA, c: ca / totalA, f: fa / totalA };
+    const rB = { p: pb / totalB, c: cb / totalB, f: fb / totalB };
+    const ratioDist = Math.sqrt(w.p * (rA.p - rB.p) ** 2 + w.c * (rA.c - rB.c) ** 2 + w.f * (rA.f - rB.f) ** 2);
+    const maxRatioDist = (Math.sqrt(w.p + w.c + w.f) * Math.SQRT2) / 2;
+    const ratioSim = Math.max(0, 1 - ratioDist / maxRatioDist);
+
+    return absSim * 0.5 + ratioSim * 0.5;
 }
 
 /**
  * Para cada item de una comida que usa un alimento genérico (FOOD_DATABASE),
  * busca en los customFoods del usuario el producto más similar por macros.
  *
- * Solo sugiere sustituciones con similaridad >= threshold (default 0.7).
- * No sugiere para items que ya usan un customFood (source === 'custom').
+ * Solo sugiere sustituciones con similaridad >= threshold (default 0.80).
+ * No sugiere para items que ya usan un customFood.
+ *
+ * Además calcula la cantidad ajustada del nuevo producto para que aporte
+ * macros equivalentes al original (prioriza el macro dominante de la categoría).
  *
  * @param {Array} items - items de la comida [{foodId, name, category, quantity, unit}]
  * @param {Array} customFoods - productos del usuario [{id, name, category, macros, ...}]
- * @param {number} [threshold=0.7] - mínimo de similaridad para sugerir
- * @returns {Array} [{itemIndex, currentFoodId, currentName, suggestedFood, similarity}]
+ * @param {number} [threshold=0.80] - mínimo de similaridad para sugerir
+ * @returns {Array} [{itemIndex, currentFoodId, currentName, suggestedFood, similarity, adjustedQty, originalMacros, suggestedMacros}]
  */
-export function suggestSubstitutions(items, customFoods, threshold = 0.7) {
+export function suggestSubstitutions(items, customFoods, threshold = 0.8) {
     if (!items?.length || !customFoods?.length) return [];
 
     const suggestions = [];
@@ -73,26 +98,24 @@ export function suggestSubstitutions(items, customFoods, threshold = 0.7) {
         const item = items[i];
 
         // No sugerir para items que ya son de Mi Nevera
-        const isCustom = customFoods.some(cf => cf.id === item.foodId);
+        const isCustom = customFoods.some((cf) => cf.id === item.foodId);
         if (isCustom) continue;
 
         // Buscar el alimento genérico original
-        const original = FOOD_DATABASE.find(f => f.id === item.foodId);
+        const original = FOOD_DATABASE.find((f) => f.id === item.foodId);
         if (!original?.macros) continue;
 
         // Buscar candidatos en customFoods de la misma categoría (o similar)
-        const candidates = customFoods.filter(cf =>
-            cf.category === original.category && cf.macros
-        );
+        const candidates = customFoods.filter((cf) => cf.category === original.category && cf.macros);
 
         if (candidates.length === 0) continue;
 
-        // Calcular similaridad de cada candidato
+        // Calcular similaridad de cada candidato (con categoría para ponderar)
         let bestMatch = null;
         let bestSim = 0;
 
         for (const candidate of candidates) {
-            const sim = macroSimilarity(original.macros, candidate.macros);
+            const sim = macroSimilarity(original.macros, candidate.macros, original.category);
             if (sim > bestSim) {
                 bestSim = sim;
                 bestMatch = candidate;
@@ -100,17 +123,80 @@ export function suggestSubstitutions(items, customFoods, threshold = 0.7) {
         }
 
         if (bestMatch && bestSim >= threshold) {
+            const qty = parseFloat(item.quantity) || 0;
+            const origMacros = calcMacros(original, qty);
+            const adjustedQty = calcAdjustedQty(original, bestMatch, qty, item.unit);
+            const sugMacros = calcMacros(bestMatch, adjustedQty);
+
             suggestions.push({
                 itemIndex: i,
                 currentFoodId: item.foodId,
                 currentName: item.name,
                 suggestedFood: bestMatch,
                 similarity: Math.round(bestSim * 100),
+                adjustedQty: String(adjustedQty),
+                originalMacros: roundMacros(origMacros),
+                suggestedMacros: roundMacros(sugMacros),
             });
         }
     }
 
     return suggestions;
+}
+
+/**
+ * Calcula la cantidad del nuevo producto que aporta macros equivalentes al original.
+ * Prioriza el macro dominante de la categoría del alimento.
+ */
+function calcAdjustedQty(originalFood, newFood, originalQty, unit) {
+    if (!originalFood?.macros || !newFood?.macros || originalQty <= 0) return originalQty;
+
+    const origM = calcMacros(originalFood, originalQty);
+
+    // Macro dominante según categoría
+    const dominantMacro =
+        originalFood.category === 'protein'
+            ? 'protein'
+            : originalFood.category === 'carbs'
+              ? 'carbs'
+              : originalFood.category === 'fat'
+                ? 'fat'
+                : 'calories';
+
+    const targetValue = dominantMacro === 'calories' ? origM.calories : origM[dominantMacro];
+    if (targetValue <= 0) return originalQty;
+
+    // Macros per unidad del nuevo food
+    const newServing = newFood.servingSize ?? (newFood.defaultUnit === 'g' || newFood.defaultUnit === 'ml' ? 100 : 1);
+    const newPer1 =
+        dominantMacro === 'calories'
+            ? (newFood.macros.calories || 0) / newServing
+            : (newFood.macros[dominantMacro] || 0) / newServing;
+
+    if (newPer1 <= 0) return originalQty;
+
+    let adjusted = targetValue / newPer1;
+
+    // Redondeo según unidad
+    const effectiveUnit = newFood.defaultUnit || unit;
+    if (effectiveUnit === 'pz') {
+        adjusted = Math.max(1, Math.round(adjusted));
+    } else if (effectiveUnit === 'taza' || effectiveUnit === 'cda') {
+        adjusted = Math.max(0.5, Math.round(adjusted * 2) / 2);
+    } else {
+        adjusted = Math.max(5, Math.round(adjusted / 5) * 5);
+    }
+
+    return adjusted;
+}
+
+function roundMacros(m) {
+    return {
+        calories: Math.round(m.calories),
+        protein: Math.round(m.protein * 10) / 10,
+        carbs: Math.round(m.carbs * 10) / 10,
+        fat: Math.round(m.fat * 10) / 10,
+    };
 }
 
 /**
@@ -171,11 +257,9 @@ export function suggestQuantities(items, targets, findFoodFn, lockedIndices = ne
     };
 
     // Ratio de escalado basado en calorías
-    const calorieRatio = currentTotal.calories > 0
-        ? remaining.calories / currentTotal.calories
-        : 1;
+    const calorieRatio = currentTotal.calories > 0 ? remaining.calories / currentTotal.calories : 1;
 
-    return itemData.map(d => {
+    return itemData.map((d) => {
         if (d.locked || !d.food?.macros) {
             return {
                 ...d.item,
@@ -198,9 +282,7 @@ export function suggestQuantities(items, targets, findFoodFn, lockedIndices = ne
             suggestedQty = Math.max(5, Math.round(suggestedQty / 5) * 5);
         }
 
-        const deltaPct = d.qty > 0
-            ? Math.round((suggestedQty / d.qty - 1) * 100)
-            : 0;
+        const deltaPct = d.qty > 0 ? Math.round((suggestedQty / d.qty - 1) * 100) : 0;
 
         return {
             ...d.item,

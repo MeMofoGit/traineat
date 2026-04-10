@@ -61,7 +61,7 @@ export default function Training() {
         setActivePhaseId,
     } = usePlan();
 
-    const { firstPending, hasPending, markSkipped, markDoneElsewhere } = usePendingWorkouts();
+    const { firstPending, hasPending, markSkipped, markDoneElsewhere, markTrainedToday } = usePendingWorkouts();
     const location = useLocation();
     const toast = useToast();
 
@@ -87,6 +87,7 @@ export default function Training() {
     const [showRestTimer, setShowRestTimer] = useState(false);
     const [restDuration, setRestDuration] = useState(0); // seconds
     const [restStartTime, setRestStartTime] = useState(0);
+    const [restPhase, setRestPhase] = useState('ok');
 
     // Sync activePhaseId: si la fase guardada ya no existe, saltamos a la primera disponible
     useEffect(() => {
@@ -106,10 +107,15 @@ export default function Training() {
     // Watch for last set completion to trigger rest timer.
     // setState en effect es intencional: es una reacción a un cambio externo
     // (lastSetContext actualizado por toggleSetCompletion).
+    // lastProcessedTimestamp evita re-disparar toast/timer en reload o StrictMode.
+    const lastProcessedTs = React.useRef(0);
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (plan.activeSession?.lastSetContext) {
             const { exerciseIndex, timestamp } = plan.activeSession.lastSetContext;
+            if (timestamp <= lastProcessedTs.current) return;
+            lastProcessedTs.current = timestamp;
+
             const ex = routine?.exercises?.[exerciseIndex];
             if (ex) {
                 // Parsear rest: soporta "90s", "2m", "0", 0, "", null
@@ -144,7 +150,7 @@ export default function Training() {
                 }
             }
         }
-    }, [plan.activeSession?.lastSetContext, routine?.exercises]);
+    }, [plan.activeSession?.lastSetContext, routine?.exercises, toast]);
     /* eslint-enable react-hooks/set-state-in-effect */
     const activePhase = plan.phases.find((p) => p.id === activePhaseId) || {};
 
@@ -313,33 +319,71 @@ export default function Training() {
                 </div>
             )}
 
-            {/* Rest Timer Overlay */}
+            {/* Rest Timer Overlay — pegado al nav inferior */}
             {showRestTimer && (
-                <div className="fixed inset-x-0 bottom-20 z-50 p-4 animate-in slide-in-from-bottom-10">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-4 flex items-center justify-between">
+                <div className="fixed inset-x-0 z-50 px-0" style={{ bottom: 'var(--nav-height, 72px)' }}>
+                    <div
+                        className={`shadow-2xl p-4 flex items-center justify-between border-t border-x transition-colors duration-500 rounded-t-2xl ${
+                            restPhase === 'overtime'
+                                ? 'bg-rose-950 border-rose-700 animate-timer-blink'
+                                : restPhase === 'critical'
+                                  ? 'bg-rose-950 border-rose-800 animate-timer-blink'
+                                  : restPhase === 'warn'
+                                    ? 'bg-orange-950 border-orange-800'
+                                    : restPhase === 'caution'
+                                      ? 'bg-yellow-950 border-yellow-700'
+                                      : 'bg-emerald-950 border-emerald-800'
+                        }`}
+                    >
                         <div className="flex items-center gap-4">
-                            <div className="bg-blue-600/20 p-3 rounded-full">
-                                <Timer size={24} className="text-blue-400" />
+                            <div
+                                className={`p-3 rounded-full transition-colors duration-500 ${
+                                    restPhase === 'overtime' || restPhase === 'critical'
+                                        ? 'bg-rose-900'
+                                        : restPhase === 'warn'
+                                          ? 'bg-orange-900'
+                                          : restPhase === 'caution'
+                                            ? 'bg-yellow-900'
+                                            : 'bg-emerald-900'
+                                }`}
+                            >
+                                <Timer
+                                    size={24}
+                                    className={`transition-colors duration-500 ${
+                                        restPhase === 'overtime' || restPhase === 'critical'
+                                            ? 'text-rose-400'
+                                            : restPhase === 'warn'
+                                              ? 'text-orange-400'
+                                              : restPhase === 'caution'
+                                                ? 'text-yellow-400'
+                                                : 'text-emerald-400'
+                                    }`}
+                                />
                             </div>
                             <div>
-                                <div className="text-slate-400 text-xs font-bold uppercase">Descanso</div>
+                                <div className="text-slate-300 text-xs font-bold uppercase">
+                                    {restPhase === 'overtime' ? '¡Tiempo pasado!' : 'Descanso'}
+                                </div>
                                 <RestCountdown
                                     startTime={restStartTime}
                                     duration={restDuration}
-                                    onComplete={() => setShowRestTimer(false)} // Optional: Play sound?
+                                    onPhaseChange={setRestPhase}
                                 />
                             </div>
                         </div>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setRestDuration((prev) => prev + 30)}
-                                className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs font-bold"
+                                className="p-2 text-slate-300 hover:text-white bg-slate-800 rounded-lg text-xs font-bold"
                             >
                                 +30s
                             </button>
                             <button
-                                onClick={() => setShowRestTimer(false)}
-                                className="p-2 text-slate-400 hover:text-white"
+                                onClick={() => {
+                                    setShowRestTimer(false);
+                                    setRestPhase('ok');
+                                }}
+                                className="p-2 text-slate-300 hover:text-white"
                             >
                                 <X size={20} />
                             </button>
@@ -362,7 +406,10 @@ export default function Training() {
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => setActiveDay(firstPending.dayId)}
+                            onClick={() => {
+                                markTrainedToday(firstPending.dayId);
+                                setActiveDay(firstPending.dayId);
+                            }}
                             className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
                         >
                             <Play size={12} fill="currentColor" /> Entrenar hoy
@@ -893,35 +940,38 @@ function SessionTimer({ startTime, pauses = [] }) {
     return <div className="font-mono text-2xl font-bold text-white tracking-widest">{formatTime(elapsed)}</div>;
 }
 
-function RestCountdown({ startTime, duration, onComplete }) {
+function RestCountdown({ startTime, duration, onPhaseChange }) {
     const [left, setLeft] = useState(duration);
-    const hasCompletedRef = React.useRef(false);
-
-    useEffect(() => {
-        hasCompletedRef.current = false;
-    }, [startTime, duration]);
 
     useEffect(() => {
         const interval = setInterval(() => {
             const elapsed = (Date.now() - startTime) / 1000;
             const remaining = Math.ceil(duration - elapsed);
             setLeft(remaining);
-            // Notificar una sola vez cuando llega a 0, pero el timer sigue
-            if (remaining <= 0 && !hasCompletedRef.current) {
-                hasCompletedRef.current = true;
-                if (onComplete) onComplete();
-            }
         }, 100);
         return () => clearInterval(interval);
-    }, [startTime, duration, onComplete]);
+    }, [startTime, duration]);
 
-    const isOvertime = left <= 0;
+    // Fase: últimos 10s = critical (blink), overtime cuando pasa de 0
+    const pct = duration > 0 ? left / duration : 0;
+    const phase =
+        left <= 0 ? 'overtime' : left <= 10 ? 'critical' : pct <= 0.25 ? 'warn' : pct <= 0.5 ? 'caution' : 'ok';
 
-    return (
-        <div className={`text-2xl font-bold font-mono ${isOvertime ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
-            {isOvertime ? `${left}s` : `${left}s`}
-        </div>
-    );
+    useEffect(() => {
+        if (onPhaseChange) onPhaseChange(phase);
+    }, [phase, onPhaseChange]);
+
+    const colorClass = {
+        ok: 'text-emerald-400',
+        caution: 'text-yellow-400',
+        warn: 'text-orange-400',
+        critical: 'text-rose-400 animate-pulse',
+        overtime: 'text-rose-400 animate-pulse',
+    }[phase];
+
+    const display = left <= 0 ? `${left}s` : `${left}s`;
+
+    return <div className={`text-2xl font-bold font-mono ${colorClass}`}>{display}</div>;
 }
 
 function WorkoutStatsModal({ session, onClose }) {

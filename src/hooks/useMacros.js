@@ -15,7 +15,7 @@ import { usePlan } from './usePlan';
  */
 export function findFood(foodId, customFoodsMap = {}) {
     if (!foodId) return null;
-    const predefined = FOOD_DATABASE.find(f => f.id === foodId);
+    const predefined = FOOD_DATABASE.find((f) => f.id === foodId);
     if (predefined) return predefined;
     return customFoodsMap[foodId] || null;
 }
@@ -37,7 +37,7 @@ export function calculateAge(birthday) {
 
 // 1. Feature: BMR & TDEE
 function calculateBMR(weight, height, age, gender = 'male') {
-    return (10 * weight) + (6.25 * height) - (5 * age) + (gender === 'male' ? 5 : -161);
+    return 10 * weight + 6.25 * height - 5 * age + (gender === 'male' ? 5 : -161);
 }
 
 function calculateTDEE(bmr, activityLevel) {
@@ -46,17 +46,21 @@ function calculateTDEE(bmr, activityLevel) {
         light: 1.375,
         moderate: 1.55,
         active: 1.725,
-        very_active: 1.9
+        very_active: 1.9,
     };
     return Math.round(bmr * (multipliers[activityLevel] || 1.375));
 }
 
 function getGoalCalories(tdee, goal) {
     switch (goal) {
-        case 'cut': return tdee - 500;
-        case 'bulk': return tdee + 300;
-        case 'recomp': return tdee - 200;
-        default: return tdee;
+        case 'cut':
+            return tdee - 500;
+        case 'bulk':
+            return tdee + 300;
+        case 'recomp':
+            return tdee - 200;
+        default:
+            return tdee;
     }
 }
 
@@ -72,7 +76,7 @@ function getTargetMacros(calories, weight, isTrainingDay) {
         calories,
         protein: proteinGrams,
         fat: fatGrams,
-        carbs: carbGrams
+        carbs: carbGrams,
     };
 }
 
@@ -106,15 +110,18 @@ function calculateItemMacrosPure(item, customFoodsMap = {}) {
 
 function sumMacrosPure(items, customFoodsMap = {}) {
     if (!items) return { protein: 0, carbs: 0, fat: 0, calories: 0 };
-    return items.reduce((acc, item) => {
-        const m = calculateItemMacrosPure(item, customFoodsMap);
-        return {
-            protein: acc.protein + m.protein,
-            carbs: acc.carbs + m.carbs,
-            fat: acc.fat + m.fat,
-            calories: acc.calories + m.calories,
-        };
-    }, { protein: 0, carbs: 0, fat: 0, calories: 0 });
+    return items.reduce(
+        (acc, item) => {
+            const m = calculateItemMacrosPure(item, customFoodsMap);
+            return {
+                protein: acc.protein + m.protein,
+                carbs: acc.carbs + m.carbs,
+                fat: acc.fat + m.fat,
+                calories: acc.calories + m.calories,
+            };
+        },
+        { protein: 0, carbs: 0, fat: 0, calories: 0 }
+    );
 }
 
 /**
@@ -136,24 +143,19 @@ export function useMacros(isTrainingDay = true) {
     }, [customFoods]);
 
     // Versiones bound al mapa actual. Estables salvo que cambien los customFoods.
-    const calculateItemMacros = useCallback(
-        (item) => calculateItemMacrosPure(item, customFoodsMap),
-        [customFoodsMap]
-    );
-    const sumMacros = useCallback(
-        (items) => sumMacrosPure(items, customFoodsMap),
-        [customFoodsMap]
-    );
+    const calculateItemMacros = useCallback((item) => calculateItemMacrosPure(item, customFoodsMap), [customFoodsMap]);
+    const sumMacros = useCallback((items) => sumMacrosPure(items, customFoodsMap), [customFoodsMap]);
 
     // 1. Calculate TDEE & Targets (Moved inputs to useMemo for efficiency)
 
     // --- HOOK STATE ---
     // In a real app, these would come from user profile in PlanContext
-    const user = plan.user || {};
     const stats = useMemo(() => {
-        const weight = (plan.weightLog && plan.weightLog.length > 0)
-            ? plan.weightLog[plan.weightLog.length - 1].weight
-            : user.start_weight || 75;
+        const user = plan.user || {};
+        const weight =
+            plan.weightLog && plan.weightLog.length > 0
+                ? plan.weightLog[plan.weightLog.length - 1].weight
+                : user.start_weight || 75;
 
         const derivedAge = calculateAge(user.birthday);
 
@@ -163,9 +165,9 @@ export function useMacros(isTrainingDay = true) {
             age: derivedAge ?? user.age ?? 30,
             gender: user.gender || 'male',
             activity: user.activity || 'moderate',
-            goal: user.goalType || 'recomp'
+            goal: user.goalType || 'recomp',
         };
-    }, [plan.weightLog, user]);
+    }, [plan.weightLog, plan.user]);
 
     // Calculate BMR & TDEE
     const bmr = calculateBMR(stats.weight, stats.height, stats.age, stats.gender);
@@ -181,35 +183,35 @@ export function useMacros(isTrainingDay = true) {
     // Calculate Consumed
     const dailyConsumed = useMemo(() => {
         return plan.schedule.default
-            .filter(slot => slot.type === 'meal')
-            .reduce((acc, slot) => {
-                const meal = plan.meals[slot.id];
-                if (!meal) return acc;
+            .filter((slot) => slot.type === 'meal')
+            .reduce(
+                (acc, slot) => {
+                    const meal = plan.meals[slot.id];
+                    if (!meal) return acc;
 
-                // Get selected option
-                const activeIndex = meal.selectedOptionIndex || 0;
-                const option = meal.options?.[activeIndex];
+                    // Get selected option
+                    const activeIndex = meal.selectedOptionIndex || 0;
+                    const option = meal.options?.[activeIndex];
 
-                if (option && option.items) {
-                    const mealMacros = sumMacrosPure(option.items, customFoodsMap);
-                    return {
-                        calories: acc.calories + mealMacros.calories,
-                        protein: acc.protein + mealMacros.protein,
-                        carbs: acc.carbs + mealMacros.carbs,
-                        fat: acc.fat + mealMacros.fat
-                    };
-                }
-                return acc;
-            }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+                    if (option && option.items) {
+                        const mealMacros = sumMacrosPure(option.items, customFoodsMap);
+                        return {
+                            calories: acc.calories + mealMacros.calories,
+                            protein: acc.protein + mealMacros.protein,
+                            carbs: acc.carbs + mealMacros.carbs,
+                            fat: acc.fat + mealMacros.fat,
+                        };
+                    }
+                    return acc;
+                },
+                { calories: 0, protein: 0, carbs: 0, fat: 0 }
+            );
     }, [plan.schedule, plan.meals, customFoodsMap]);
-
 
     return {
         targets,
         calculateItemMacros,
         sumMacros,
-        dailyConsumed
+        dailyConsumed,
     };
 }
-
-

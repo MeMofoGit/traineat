@@ -46,10 +46,10 @@ export function usePendingWorkouts() {
     const [decisions, setDecisions] = useState(loadDecisions);
 
     const activePhaseId = plan.activePhaseId || plan.phases?.[0]?.id || 1;
-    const history = plan.history || [];
-    const routines = plan.routines?.[activePhaseId] || {};
 
     const pending = useMemo(() => {
+        const history = plan.history || [];
+        const routines = plan.routines?.[activePhaseId] || {};
         const now = new Date();
         const todayDayId = now.getDay();
         const weekKey = getWeekKey(now);
@@ -81,7 +81,7 @@ export function usePendingWorkouts() {
             });
         }
         return result;
-    }, [history, routines, activePhaseId, decisions]);
+    }, [plan.history, plan.routines, activePhaseId, decisions]);
 
     const setDecision = useCallback((dayId, decision) => {
         const weekKey = getWeekKey(new Date());
@@ -111,11 +111,28 @@ export function usePendingWorkouts() {
         [activePhaseId, logSkippedSession, setDecision]
     );
 
+    // Al pulsar "Entrenar hoy" con una rutina de otro día, marcamos el día
+    // actual como "displaced" para que mañana no aparezca como pendiente
+    // (evita cascada infinita de banners).
+    const markTrainedToday = useCallback(
+        (pendingDayId) => {
+            const todayId = new Date().getDay();
+            setDecision(pendingDayId, 'trained_today');
+            // Si hoy tiene rutina propia, marcarla como desplazada
+            const routines = plan.routines?.[activePhaseId] || {};
+            if (routines[todayId]?.exercises?.length > 0) {
+                setDecision(todayId, 'displaced');
+            }
+        },
+        [activePhaseId, plan.routines, setDecision]
+    );
+
     return {
         pending,
         hasPending: pending.length > 0,
         firstPending: pending[0] || null,
         markSkipped,
         markDoneElsewhere,
+        markTrainedToday,
     };
 }

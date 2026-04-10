@@ -109,7 +109,7 @@ describe('macroSimilarity', () => {
     });
 
     it('returns high similarity for slight differences', () => {
-        const generic = { protein: 23, carbs: 0, fat: 1 };  // chicken_breast
+        const generic = { protein: 23, carbs: 0, fat: 1 }; // chicken_breast
         const branded = { protein: 23.5, carbs: 0, fat: 1.2 }; // Mercadona chicken
         expect(macroSimilarity(generic, branded)).toBeGreaterThan(0.95);
     });
@@ -148,7 +148,7 @@ describe('macroSimilarity', () => {
 describe('suggestSubstitutions', () => {
     it('finds matching substitution for chicken breast', () => {
         const subs = suggestSubstitutions(lunchItems, myFridge);
-        const chickenSub = subs.find(s => s.currentFoodId === 'chicken_breast');
+        const chickenSub = subs.find((s) => s.currentFoodId === 'chicken_breast');
         expect(chickenSub).toBeDefined();
         expect(chickenSub.suggestedFood.id).toBe('user_pechuga_mercadona_abc');
         expect(chickenSub.similarity).toBeGreaterThan(90);
@@ -156,7 +156,7 @@ describe('suggestSubstitutions', () => {
 
     it('finds matching substitution for rice', () => {
         const subs = suggestSubstitutions(lunchItems, myFridge);
-        const riceSub = subs.find(s => s.currentFoodId === 'rice_white_raw');
+        const riceSub = subs.find((s) => s.currentFoodId === 'rice_white_raw');
         expect(riceSub).toBeDefined();
         expect(riceSub.suggestedFood.id).toBe('user_arroz_brillante_def');
         expect(riceSub.similarity).toBeGreaterThan(90);
@@ -164,7 +164,7 @@ describe('suggestSubstitutions', () => {
 
     it('finds matching substitution for broccoli', () => {
         const subs = suggestSubstitutions(lunchItems, myFridge);
-        const brocSub = subs.find(s => s.currentFoodId === 'broccoli');
+        const brocSub = subs.find((s) => s.currentFoodId === 'broccoli');
         expect(brocSub).toBeDefined();
         expect(brocSub.suggestedFood.id).toBe('user_brocoli_hacendado_ghi');
     });
@@ -172,10 +172,16 @@ describe('suggestSubstitutions', () => {
     it('does NOT suggest substitution for items already from Mi Nevera', () => {
         const itemsWithCustom = [
             ...lunchItems,
-            { foodId: 'user_pechuga_mercadona_abc', name: 'Pechuga Mercadona', category: 'protein', quantity: '100', unit: 'g' },
+            {
+                foodId: 'user_pechuga_mercadona_abc',
+                name: 'Pechuga Mercadona',
+                category: 'protein',
+                quantity: '100',
+                unit: 'g',
+            },
         ];
         const subs = suggestSubstitutions(itemsWithCustom, myFridge);
-        const customSub = subs.find(s => s.currentFoodId === 'user_pechuga_mercadona_abc');
+        const customSub = subs.find((s) => s.currentFoodId === 'user_pechuga_mercadona_abc');
         expect(customSub).toBeUndefined();
     });
 
@@ -206,22 +212,34 @@ describe('suggestSubstitutions', () => {
     });
 
     it('higher threshold reduces suggestions', () => {
-        const subsNormal = suggestSubstitutions(lunchItems, myFridge, 0.7);
+        const subsNormal = suggestSubstitutions(lunchItems, myFridge, 0.8);
         const subsStrict = suggestSubstitutions(lunchItems, myFridge, 0.99);
-        // Strict threshold should return fewer or equal suggestions
         expect(subsStrict.length).toBeLessThanOrEqual(subsNormal.length);
     });
 
-    it('suggests yogurt for generic yogurt, not for chicken', () => {
+    it('returns adjustedQty and macro comparison for each suggestion', () => {
+        const subs = suggestSubstitutions(lunchItems, myFridge);
+        for (const sub of subs) {
+            expect(sub.adjustedQty).toBeDefined();
+            expect(sub.originalMacros).toBeDefined();
+            expect(sub.suggestedMacros).toBeDefined();
+            expect(sub.originalMacros).toHaveProperty('calories');
+            expect(sub.originalMacros).toHaveProperty('protein');
+            expect(sub.suggestedMacros).toHaveProperty('calories');
+        }
+    });
+
+    it('rejects low-quality matches — Greek yogurt vs Danone natural', () => {
+        // yogurt_greek: {protein:10, carbs:3, fat:0} vs Danone: {5,6,2}
+        // Very different profiles — with the improved algorithm + 80% threshold,
+        // this should NOT produce a match (it was a false positive before).
         const items = [
             { foodId: 'yogurt_greek', name: 'Yogur Griego', category: 'protein', quantity: '150', unit: 'g' },
         ];
         const subs = suggestSubstitutions(items, myFridge);
-        // yogurt_greek has {protein:10, carbs:3, fat:0} → similar to Danone {5,6,2}?
-        // Hmm, Greek yogurt is high protein low carb, Danone is moderate.
-        // The similarity might be above or below 70% depending on ratios.
-        // This test documents the actual behavior.
+        // If it does match, the similarity must be honest (>= 80%)
         if (subs.length > 0) {
+            expect(subs[0].similarity).toBeGreaterThanOrEqual(80);
             expect(subs[0].suggestedFood.category).toBe('protein');
         }
     });

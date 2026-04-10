@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-    X, Save, ChevronDown, ChevronUp, AlertCircle,
-    Barcode, Camera, PenLine, Loader2, Info, Lock,
+    X,
+    Save,
+    ChevronDown,
+    ChevronUp,
+    AlertCircle,
+    Barcode,
+    Camera,
+    PenLine,
+    Loader2,
+    Info,
+    Lock,
 } from 'lucide-react';
 import { FOOD_CATEGORIES } from '../data/food_database';
 import { usePlan } from '../hooks/usePlan';
@@ -83,11 +92,12 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
             }
             setLookupNotice({
                 kind: 'info',
-                text: source === 'session_cache'
-                    ? 'Producto recuperado de caché local — revisa los datos y confirma.'
-                    : source === 'cache'
-                        ? 'Producto encontrado (ya consultado antes). Revisa los datos y confirma.'
-                        : 'Producto encontrado en OpenFoodFacts. Revisa los datos y confirma.',
+                text:
+                    source === 'session_cache'
+                        ? 'Producto recuperado de caché local — revisa los datos y confirma.'
+                        : source === 'cache'
+                          ? 'Producto encontrado (ya consultado antes). Revisa los datos y confirma.'
+                          : 'Producto encontrado en OpenFoodFacts. Revisa los datos y confirma.',
             });
         } catch (err) {
             // En todos los casos de error limpiamos el form para no dejar
@@ -129,109 +139,116 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
     }, []);
 
     // --- OCR flow ---
-    const handleFileSelected = useCallback(async (file) => {
-        if (!file) return;
-        setError(null);
-        setLookupNotice(null);
-        setOcrLoading(true);
+    const handleFileSelected = useCallback(
+        async (file) => {
+            if (!file) return;
+            setError(null);
+            setLookupNotice(null);
+            setOcrLoading(true);
 
-        // Preservar el barcode si ya había uno (hint para el OCR).
-        const currentBarcode = form.barcode;
+            // Preservar el barcode si ya había uno (hint para el OCR).
+            const currentBarcode = form.barcode;
 
-        try {
-            // 1. Preprocesar imagen (resize + compress + base64)
-            const { base64, mimeType } = await preprocessImage(file);
+            try {
+                // 1. Preprocesar imagen (resize + compress + base64)
+                const { base64, mimeType } = await preprocessImage(file);
 
-            // 2. Llamar a la Function
-            const { food, confidence, notes } = await ocrLabelFromBase64(
-                base64,
-                mimeType,
-                currentBarcode || undefined
-            );
-
-            // 3. Rellenar el form. El servidor devuelve name='' deliberadamente
-            //    (el OCR no lo extrae, el usuario lo escribe).
-            setForm(foodToForm(food));
-            const m = food.macros || {};
-            if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
-                setShowOptional(true);
-            }
-
-            // 4. Notice según confianza. SIEMPRE recordamos al usuario que
-            //    añada el nombre, porque el OCR nunca lo rellena.
-            const confText = confidence === 'high'
-                ? 'Etiqueta leída con alta confianza.'
-                : confidence === 'medium'
-                    ? 'Etiqueta leída. Algunos valores pueden necesitar revisión.'
-                    : 'Lectura con baja confianza. Revisa cada campo antes de guardar.';
-            const namePrompt = ' Añade el nombre del producto arriba para guardarlo.';
-            setLookupNotice({
-                kind: confidence === 'high' ? 'info' : 'warn',
-                text: notes ? `${confText} (${notes})${namePrompt}` : `${confText}${namePrompt}`,
-            });
-
-            // 5. Autofocus al campo nombre para que el usuario empiece a escribir
-            setTimeout(() => firstInputRef.current?.focus(), 100);
-        } catch (err) {
-            // En todos los errores de OCR limpiamos campos (excepto barcode si lo había)
-            if (err?.code === OcrErrors.NOT_A_LABEL) {
-                setForm(currentBarcode
-                    ? { ...buildEmptyForm(), barcode: currentBarcode }
-                    : buildEmptyForm()
+                // 2. Llamar a la Function
+                const { food, confidence, notes } = await ocrLabelFromBase64(
+                    base64,
+                    mimeType,
+                    currentBarcode || undefined
                 );
-                setShowOptional(false);
+
+                // 3. Rellenar el form. El servidor devuelve name='' deliberadamente
+                //    (el OCR no lo extrae, el usuario lo escribe).
+                setForm(foodToForm(food));
+                const m = food.macros || {};
+                if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
+                    setShowOptional(true);
+                }
+
+                // 4. Notice según confianza. SIEMPRE recordamos al usuario que
+                //    añada el nombre, porque el OCR nunca lo rellena.
+                const confText =
+                    confidence === 'high'
+                        ? 'Etiqueta leída con alta confianza.'
+                        : confidence === 'medium'
+                          ? 'Etiqueta leída. Algunos valores pueden necesitar revisión.'
+                          : 'Lectura con baja confianza. Revisa cada campo antes de guardar.';
+                const namePrompt = ' Añade el nombre del producto arriba para guardarlo.';
                 setLookupNotice({
-                    kind: 'warn',
-                    text: err.message,
+                    kind: confidence === 'high' ? 'info' : 'warn',
+                    text: notes ? `${confText} (${notes})${namePrompt}` : `${confText}${namePrompt}`,
                 });
-            } else if (err?.code === OcrErrors.INCOMPLETE) {
-                setForm(currentBarcode
-                    ? { ...buildEmptyForm(), barcode: currentBarcode }
-                    : buildEmptyForm()
-                );
-                setShowOptional(false);
-                setLookupNotice({
-                    kind: 'warn',
-                    text: err.message,
-                });
-            } else if (err?.code === OcrErrors.RATE_LIMITED) {
-                setLookupNotice({
-                    kind: 'warn',
-                    text: err.message,
-                });
-            } else if (err?.code === OcrErrors.IMAGE_TOO_LARGE || err?.code === OcrErrors.IMAGE_INVALID) {
-                setLookupNotice({
-                    kind: 'warn',
-                    text: err.message,
-                });
-            } else if (err?.code === OcrErrors.API_ERROR) {
-                setLookupNotice({
-                    kind: 'warn',
-                    text: err.message || 'Servicio OCR no disponible. Prueba en unos minutos.',
-                });
-            } else {
-                setError(err?.message || 'Error al procesar la imagen');
+
+                // 5. Autofocus al campo nombre para que el usuario empiece a escribir
+                setTimeout(() => firstInputRef.current?.focus(), 100);
+            } catch (err) {
+                // En todos los errores de OCR limpiamos campos (excepto barcode si lo había)
+                if (err?.code === OcrErrors.NOT_A_LABEL) {
+                    setForm(currentBarcode ? { ...buildEmptyForm(), barcode: currentBarcode } : buildEmptyForm());
+                    setShowOptional(false);
+                    setLookupNotice({
+                        kind: 'warn',
+                        text: err.message,
+                    });
+                } else if (err?.code === OcrErrors.INCOMPLETE) {
+                    setForm(currentBarcode ? { ...buildEmptyForm(), barcode: currentBarcode } : buildEmptyForm());
+                    setShowOptional(false);
+                    setLookupNotice({
+                        kind: 'warn',
+                        text: err.message,
+                    });
+                } else if (err?.code === OcrErrors.RATE_LIMITED) {
+                    setLookupNotice({
+                        kind: 'warn',
+                        text: err.message,
+                    });
+                } else if (err?.code === OcrErrors.IMAGE_TOO_LARGE || err?.code === OcrErrors.IMAGE_INVALID) {
+                    setLookupNotice({
+                        kind: 'warn',
+                        text: err.message,
+                    });
+                } else if (err?.code === OcrErrors.API_ERROR) {
+                    setLookupNotice({
+                        kind: 'warn',
+                        text: err.message || 'Servicio OCR no disponible. Prueba en unos minutos.',
+                    });
+                } else {
+                    setError(err?.message || 'Error al procesar la imagen');
+                }
+            } finally {
+                setOcrLoading(false);
+                // Limpiar el input para permitir reintento del mismo fichero
+                if (fileInputRef.current) fileInputRef.current.value = '';
             }
-        } finally {
-            setOcrLoading(false);
-            // Limpiar el input para permitir reintento del mismo fichero
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    }, [form.barcode]);
+        },
+        [form.barcode]
+    );
 
     const openPhotoPicker = useCallback(() => {
         fileInputRef.current?.click();
     }, []);
 
-    // ESC para cerrar
+    // ESC para cerrar — referencia estable vía ref para no re-suscribir en cada render
+    const closeAttemptRef = useRef(null);
+    closeAttemptRef.current = () => {
+        const dirty =
+            mode === 'create'
+                ? Object.values(form).some((v) => v !== '' && v !== 'g' && v !== 'protein' && v !== '100')
+                : JSON.stringify(form) !== JSON.stringify(foodToForm(initialFood || {}));
+        if (dirty && !confirm('¿Descartar los cambios?')) return;
+        onClose();
+    };
     useEffect(() => {
         if (!isOpen) return;
         const handleKey = (e) => {
-            if (e.key === 'Escape') handleCloseAttempt();
+            if (e.key === 'Escape') closeAttemptRef.current();
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [isOpen, form]);
+    }, [isOpen]);
 
     // Botón "atrás" del navegador cierra el modal.
     // Solo pushState + popstate listener, sin history.back() en cleanup
@@ -246,9 +263,10 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
 
     if (!isOpen) return null;
 
-    const isDirty = mode === 'create'
-        ? Object.values(form).some(v => v !== '' && v !== 'g' && v !== 'protein' && v !== '100')
-        : JSON.stringify(form) !== JSON.stringify(foodToForm(initialFood || {}));
+    const isDirty =
+        mode === 'create'
+            ? Object.values(form).some((v) => v !== '' && v !== 'g' && v !== 'protein' && v !== '100')
+            : JSON.stringify(form) !== JSON.stringify(foodToForm(initialFood || {}));
 
     function handleCloseAttempt() {
         if (isDirty && !confirm('¿Descartar los cambios?')) return;
@@ -256,19 +274,19 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
     }
 
     function setField(key, value) {
-        setForm(prev => ({ ...prev, [key]: value }));
+        setForm((prev) => ({ ...prev, [key]: value }));
     }
 
     function setMacro(key, value) {
-        setForm(prev => ({ ...prev, macros: { ...prev.macros, [key]: value } }));
+        setForm((prev) => ({ ...prev, macros: { ...prev.macros, [key]: value } }));
     }
 
     // Auto-ajustar servingSize cuando cambia la unidad
     function handleUnitChange(unit) {
-        setForm(prev => ({
+        setForm((prev) => ({
             ...prev,
             defaultUnit: unit,
-            servingSize: (unit === 'g' || unit === 'ml') ? '100' : '1',
+            servingSize: unit === 'g' || unit === 'ml' ? '100' : '1',
         }));
     }
 
@@ -294,276 +312,316 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
 
     return createPortal(
         <>
-        <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
-            onClick={handleCloseAttempt}
-        >
             <div
-                className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[95vh] flex flex-col animate-in slide-in-from-bottom-8 duration-300"
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="custom-food-modal-title"
+                className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+                onClick={handleCloseAttempt}
             >
-                {/* Header */}
-                <header className="flex items-center justify-between p-5 border-b border-slate-800">
-                    <div>
-                        <h2 id="custom-food-modal-title" className="text-lg font-bold text-white">
-                            {mode === 'edit' ? 'Editar producto' : 'Nuevo producto'}
-                        </h2>
-                        <p className="text-xs text-slate-500">Mi Nevera</p>
-                    </div>
-                    <button
-                        onClick={handleCloseAttempt}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                        aria-label="Cerrar"
-                    >
-                        <X size={20} />
-                    </button>
-                </header>
-
-                {/* Body scrollable */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                    {/* Source picker: barcode / foto / manual (solo en modo create) */}
-                    {mode === 'create' && (
-                        <>
-                            <div className="grid grid-cols-3 gap-2">
-                                <SourceButton
-                                    icon={<Barcode size={18} />}
-                                    label="Código"
-                                    sublabel="Escanear"
-                                    color="cyan"
-                                    disabled={lookupLoading || ocrLoading || !entitlements.barcodeScan}
-                                    locked={!entitlements.barcodeScan}
-                                    onClick={() => setScannerOpen(true)}
-                                />
-                                <SourceButton
-                                    icon={<Camera size={18} />}
-                                    label="Foto"
-                                    sublabel="Etiqueta"
-                                    color="amber"
-                                    disabled={lookupLoading || ocrLoading || !entitlements.ocrLabel}
-                                    locked={!entitlements.ocrLabel}
-                                    onClick={openPhotoPicker}
-                                />
-                                <SourceButton
-                                    icon={<PenLine size={18} />}
-                                    label="Manual"
-                                    sublabel="Formulario"
-                                    color="blue"
-                                    active
-                                    disabled={lookupLoading || ocrLoading}
-                                    onClick={() => setLookupNotice(null)}
-                                />
-                            </div>
-                            {/* Input oculto para capturar imagen — activado vía fileInputRef */}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleFileSelected(file);
-                                }}
-                            />
-                        </>
-                    )}
-
-                    {/* Loading del lookup */}
-                    {lookupLoading && (
-                        <div className="flex items-center gap-3 p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-xs text-slate-300">
-                            <Loader2 size={14} className="animate-spin text-cyan-400 shrink-0" />
-                            <span>Buscando producto en OpenFoodFacts…</span>
+                <div
+                    className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[95vh] flex flex-col animate-in slide-in-from-bottom-8 duration-300"
+                    onClick={(e) => e.stopPropagation()}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="custom-food-modal-title"
+                >
+                    {/* Header */}
+                    <header className="flex items-center justify-between p-5 border-b border-slate-800">
+                        <div>
+                            <h2 id="custom-food-modal-title" className="text-lg font-bold text-white">
+                                {mode === 'edit' ? 'Editar producto' : 'Nuevo producto'}
+                            </h2>
+                            <p className="text-xs text-slate-500">Mi Nevera</p>
                         </div>
-                    )}
-
-                    {/* Loading del OCR */}
-                    {ocrLoading && (
-                        <div className="flex items-center gap-3 p-3 bg-amber-950/30 border border-amber-900/50 rounded-xl text-xs text-amber-200">
-                            <Loader2 size={14} className="animate-spin text-amber-400 shrink-0" />
-                            <span>Leyendo la etiqueta con IA… puede tardar unos segundos.</span>
-                        </div>
-                    )}
-
-                    {/* Notice del lookup (éxito / not found / error) */}
-                    {lookupNotice && (
-                        <div
-                            className={`flex items-start gap-2 p-3 rounded-xl border text-xs ${
-                                lookupNotice.kind === 'warn'
-                                    ? 'bg-amber-950/30 border-amber-900/50 text-amber-200'
-                                    : 'bg-cyan-950/30 border-cyan-900/50 text-cyan-200'
-                            }`}
+                        <button
+                            onClick={handleCloseAttempt}
+                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                            aria-label="Cerrar"
                         >
-                            <Info size={14} className="shrink-0 mt-0.5" />
-                            <span>{lookupNotice.text}</span>
-                        </div>
-                    )}
+                            <X size={20} />
+                        </button>
+                    </header>
 
-                    {/* Identidad */}
-                    <Section title="Identidad">
-                        <Field label="Nombre del producto *">
-                            <input
-                                ref={firstInputRef}
-                                type="text"
-                                value={form.name}
-                                onChange={e => setField('name', e.target.value)}
-                                placeholder="Ej. Pan Bimbo Integral"
-                                maxLength={80}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
-                            />
-                        </Field>
-
-                        <Field label="Marca">
-                            <input
-                                type="text"
-                                value={form.brand}
-                                onChange={e => setField('brand', e.target.value)}
-                                placeholder="Ej. Bimbo (opcional)"
-                                maxLength={100}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
-                            />
-                        </Field>
-
-                        {form.barcode && (
-                            <div className="flex items-center justify-between gap-2 p-2 bg-slate-950 border border-slate-800 rounded-lg">
-                                <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
-                                    <Barcode size={12} className="shrink-0 text-cyan-400" />
-                                    <span className="font-mono truncate">{form.barcode}</span>
+                    {/* Body scrollable */}
+                    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                        {/* Source picker: barcode / foto / manual (solo en modo create) */}
+                        {mode === 'create' && (
+                            <>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <SourceButton
+                                        icon={<Barcode size={18} />}
+                                        label="Código"
+                                        sublabel="Escanear"
+                                        color="cyan"
+                                        disabled={lookupLoading || ocrLoading || !entitlements.barcodeScan}
+                                        locked={!entitlements.barcodeScan}
+                                        onClick={() => setScannerOpen(true)}
+                                    />
+                                    <SourceButton
+                                        icon={<Camera size={18} />}
+                                        label="Foto"
+                                        sublabel="Etiqueta"
+                                        color="amber"
+                                        disabled={lookupLoading || ocrLoading || !entitlements.ocrLabel}
+                                        locked={!entitlements.ocrLabel}
+                                        onClick={openPhotoPicker}
+                                    />
+                                    <SourceButton
+                                        icon={<PenLine size={18} />}
+                                        label="Manual"
+                                        sublabel="Formulario"
+                                        color="blue"
+                                        active
+                                        disabled={lookupLoading || ocrLoading}
+                                        onClick={() => setLookupNotice(null)}
+                                    />
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setField('barcode', '')}
-                                    className="shrink-0 text-[10px] text-slate-500 hover:text-rose-400 font-bold uppercase tracking-wider"
-                                >
-                                    Quitar
-                                </button>
+                                {/* Input oculto para capturar imagen — activado vía fileInputRef */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleFileSelected(file);
+                                    }}
+                                />
+                            </>
+                        )}
+
+                        {/* Loading del lookup */}
+                        {lookupLoading && (
+                            <div className="flex items-center gap-3 p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-xs text-slate-300">
+                                <Loader2 size={14} className="animate-spin text-cyan-400 shrink-0" />
+                                <span>Buscando producto en OpenFoodFacts…</span>
                             </div>
                         )}
 
-                        <Field label="Categoría *">
-                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {Object.values(FOOD_CATEGORIES).map(cat => (
-                                    <button
-                                        key={cat.id}
-                                        type="button"
-                                        onClick={() => setField('category', cat.id)}
-                                        className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${
-                                            form.category === cat.id
-                                                ? `${cat.bg} ${cat.border} ${cat.color}`
-                                                : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
-                                        }`}
-                                    >
-                                        <span className="text-base leading-none">{cat.icon}</span>
-                                        <span className="leading-none">{cat.label}</span>
-                                    </button>
-                                ))}
+                        {/* Loading del OCR */}
+                        {ocrLoading && (
+                            <div className="flex items-center gap-3 p-3 bg-amber-950/30 border border-amber-900/50 rounded-xl text-xs text-amber-200">
+                                <Loader2 size={14} className="animate-spin text-amber-400 shrink-0" />
+                                <span>Leyendo la etiqueta con IA… puede tardar unos segundos.</span>
                             </div>
-                        </Field>
+                        )}
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <Field label="Unidad *">
-                                <select
-                                    value={form.defaultUnit}
-                                    onChange={e => handleUnitChange(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
-                                >
-                                    <option value="g">Gramos (g)</option>
-                                    <option value="ml">Mililitros (ml)</option>
-                                    <option value="pz">Pieza (pz)</option>
-                                    <option value="taza">Taza</option>
-                                    <option value="cda">Cucharada</option>
-                                </select>
-                            </Field>
+                        {/* Notice del lookup (éxito / not found / error) */}
+                        {lookupNotice && (
+                            <div
+                                className={`flex items-start gap-2 p-3 rounded-xl border text-xs ${
+                                    lookupNotice.kind === 'warn'
+                                        ? 'bg-amber-950/30 border-amber-900/50 text-amber-200'
+                                        : 'bg-cyan-950/30 border-cyan-900/50 text-cyan-200'
+                                }`}
+                            >
+                                <Info size={14} className="shrink-0 mt-0.5" />
+                                <span>{lookupNotice.text}</span>
+                            </div>
+                        )}
 
-                            <Field label="Por cada *" hint={getServingHint(form.defaultUnit)}>
+                        {/* Identidad */}
+                        <Section title="Identidad">
+                            <Field label="Nombre del producto *">
                                 <input
-                                    type="number"
-                                    inputMode="decimal"
-                                    min="0"
-                                    step="any"
-                                    value={form.servingSize}
-                                    onChange={e => setField('servingSize', e.target.value)}
+                                    ref={firstInputRef}
+                                    type="text"
+                                    value={form.name}
+                                    onChange={(e) => setField('name', e.target.value)}
+                                    placeholder="Ej. Pan Bimbo Integral"
+                                    maxLength={80}
                                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
                                 />
                             </Field>
-                        </div>
-                    </Section>
 
-                    {/* Macros principales */}
-                    <Section title={`Macros por ${form.servingSize || '?'} ${form.defaultUnit}`}>
-                        <div className="grid grid-cols-2 gap-3">
-                            <MacroField label="Calorías" unit="kcal" value={form.macros.calories} onChange={v => setMacro('calories', v)} />
-                            <MacroField label="Proteínas" unit="g" value={form.macros.protein} onChange={v => setMacro('protein', v)} />
-                            <MacroField label="Carbohidratos" unit="g" value={form.macros.carbs} onChange={v => setMacro('carbs', v)} />
-                            <MacroField label="Grasas" unit="g" value={form.macros.fat} onChange={v => setMacro('fat', v)} />
-                        </div>
-                    </Section>
+                            <Field label="Marca">
+                                <input
+                                    type="text"
+                                    value={form.brand}
+                                    onChange={(e) => setField('brand', e.target.value)}
+                                    placeholder="Ej. Bimbo (opcional)"
+                                    maxLength={100}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
+                                />
+                            </Field>
 
-                    {/* Macros opcionales (colapsable) */}
-                    <button
-                        type="button"
-                        onClick={() => setShowOptional(s => !s)}
-                        className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors p-2 -mx-2"
-                    >
-                        <span>Macros adicionales (opcional)</span>
-                        {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
+                            {form.barcode && (
+                                <div className="flex items-center justify-between gap-2 p-2 bg-slate-950 border border-slate-800 rounded-lg">
+                                    <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
+                                        <Barcode size={12} className="shrink-0 text-cyan-400" />
+                                        <span className="font-mono truncate">{form.barcode}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setField('barcode', '')}
+                                        className="shrink-0 text-[10px] text-slate-500 hover:text-rose-400 font-bold uppercase tracking-wider"
+                                    >
+                                        Quitar
+                                    </button>
+                                </div>
+                            )}
 
-                    {showOptional && (
-                        <Section title="Detalle nutricional">
+                            <Field label="Categoría *">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                    {Object.values(FOOD_CATEGORIES).map((cat) => (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            onClick={() => setField('category', cat.id)}
+                                            className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${
+                                                form.category === cat.id
+                                                    ? `${cat.bg} ${cat.border} ${cat.color}`
+                                                    : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                                            }`}
+                                        >
+                                            <span className="text-base leading-none">{cat.icon}</span>
+                                            <span className="leading-none">{cat.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </Field>
+
                             <div className="grid grid-cols-2 gap-3">
-                                <MacroField label="Azúcares" unit="g" value={form.macros.sugars} onChange={v => setMacro('sugars', v)} />
-                                <MacroField label="Fibra" unit="g" value={form.macros.fiber} onChange={v => setMacro('fiber', v)} />
-                                <MacroField label="Saturadas" unit="g" value={form.macros.saturated} onChange={v => setMacro('saturated', v)} />
-                                <MacroField label="Sal" unit="g" value={form.macros.salt} onChange={v => setMacro('salt', v)} />
+                                <Field label="Unidad *">
+                                    <select
+                                        value={form.defaultUnit}
+                                        onChange={(e) => handleUnitChange(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
+                                    >
+                                        <option value="g">Gramos (g)</option>
+                                        <option value="ml">Mililitros (ml)</option>
+                                        <option value="pz">Pieza (pz)</option>
+                                        <option value="taza">Taza</option>
+                                        <option value="cda">Cucharada</option>
+                                    </select>
+                                </Field>
+
+                                <Field label="Por cada *" hint={getServingHint(form.defaultUnit)}>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        min="0"
+                                        step="any"
+                                        value={form.servingSize}
+                                        onChange={(e) => setField('servingSize', e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500"
+                                    />
+                                </Field>
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-2">
-                                Si la etiqueta indica sodio, multiplícalo por 2.5 para obtener sal.
-                            </p>
                         </Section>
-                    )}
-                </div>
 
-                {/* Footer fijo */}
-                <footer className="p-5 border-t border-slate-800 bg-slate-900/95 space-y-3">
-                    {error && (
-                        <div className="flex items-start gap-2 p-3 bg-rose-950/40 border border-rose-900 rounded-lg text-xs text-rose-300">
-                            <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                            <span>{error}</span>
-                        </div>
-                    )}
-                    <div className="flex gap-2">
+                        {/* Macros principales */}
+                        <Section title={`Macros por ${form.servingSize || '?'} ${form.defaultUnit}`}>
+                            <div className="grid grid-cols-2 gap-3">
+                                <MacroField
+                                    label="Calorías"
+                                    unit="kcal"
+                                    value={form.macros.calories}
+                                    onChange={(v) => setMacro('calories', v)}
+                                />
+                                <MacroField
+                                    label="Proteínas"
+                                    unit="g"
+                                    value={form.macros.protein}
+                                    onChange={(v) => setMacro('protein', v)}
+                                />
+                                <MacroField
+                                    label="Carbohidratos"
+                                    unit="g"
+                                    value={form.macros.carbs}
+                                    onChange={(v) => setMacro('carbs', v)}
+                                />
+                                <MacroField
+                                    label="Grasas"
+                                    unit="g"
+                                    value={form.macros.fat}
+                                    onChange={(v) => setMacro('fat', v)}
+                                />
+                            </div>
+                        </Section>
+
+                        {/* Macros opcionales (colapsable) */}
                         <button
                             type="button"
-                            onClick={handleCloseAttempt}
-                            disabled={saving}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-colors disabled:opacity-50"
+                            onClick={() => setShowOptional((s) => !s)}
+                            className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors p-2 -mx-2"
                         >
-                            Cancelar
+                            <span>Macros adicionales (opcional)</span>
+                            {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
-                        <button
-                            type="button"
-                            onClick={handleSave}
-                            disabled={saving || !form.name?.trim()}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            title={!form.name?.trim() ? 'Añade un nombre al producto' : undefined}
-                        >
-                            <Save size={14} />
-                            {saving ? 'Guardando…' : (mode === 'edit' ? 'Guardar cambios' : 'Crear producto')}
-                        </button>
+
+                        {showOptional && (
+                            <Section title="Detalle nutricional">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <MacroField
+                                        label="Azúcares"
+                                        unit="g"
+                                        value={form.macros.sugars}
+                                        onChange={(v) => setMacro('sugars', v)}
+                                    />
+                                    <MacroField
+                                        label="Fibra"
+                                        unit="g"
+                                        value={form.macros.fiber}
+                                        onChange={(v) => setMacro('fiber', v)}
+                                    />
+                                    <MacroField
+                                        label="Saturadas"
+                                        unit="g"
+                                        value={form.macros.saturated}
+                                        onChange={(v) => setMacro('saturated', v)}
+                                    />
+                                    <MacroField
+                                        label="Sal"
+                                        unit="g"
+                                        value={form.macros.salt}
+                                        onChange={(v) => setMacro('salt', v)}
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-2">
+                                    Si la etiqueta indica sodio, multiplícalo por 2.5 para obtener sal.
+                                </p>
+                            </Section>
+                        )}
                     </div>
-                </footer>
-            </div>
-        </div>
 
-        {/* Scanner fuera del panel del modal porque va full-screen encima (z-60) */}
-        <BarcodeScanner
-            isOpen={scannerOpen}
-            onClose={() => setScannerOpen(false)}
-            onDetected={handleBarcodeDetected}
-        />
+                    {/* Footer fijo */}
+                    <footer className="p-5 border-t border-slate-800 bg-slate-900/95 space-y-3">
+                        {error && (
+                            <div className="flex items-start gap-2 p-3 bg-rose-950/40 border border-rose-900 rounded-lg text-xs text-rose-300">
+                                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleCloseAttempt}
+                                disabled={saving}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-colors disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={saving || !form.name?.trim()}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                title={!form.name?.trim() ? 'Añade un nombre al producto' : undefined}
+                            >
+                                <Save size={14} />
+                                {saving ? 'Guardando…' : mode === 'edit' ? 'Guardar cambios' : 'Crear producto'}
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            </div>
+
+            {/* Scanner fuera del panel del modal porque va full-screen encima (z-60) */}
+            <BarcodeScanner
+                isOpen={scannerOpen}
+                onClose={() => setScannerOpen(false)}
+                onDetected={handleBarcodeDetected}
+            />
         </>,
         document.body
     );
@@ -597,9 +655,7 @@ function SourceButton({ icon, label, sublabel, color, active, disabled, locked, 
                 {locked && <Lock size={10} />}
             </div>
             <div className="text-[11px] font-bold leading-none mt-1">{label}</div>
-            <div className="text-[9px] leading-none opacity-70">
-                {comingSoon ? 'Próximamente' : sublabel}
-            </div>
+            <div className="text-[9px] leading-none opacity-70">{comingSoon ? 'Próximamente' : sublabel}</div>
         </button>
     );
 }
@@ -616,9 +672,7 @@ function Section({ title, children }) {
 function Field({ label, hint, children }) {
     return (
         <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">
-                {label}
-            </label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">{label}</label>
             {children}
             {hint && <p className="text-[10px] text-slate-500 mt-1">{hint}</p>}
         </div>
@@ -628,9 +682,7 @@ function Field({ label, hint, children }) {
 function MacroField({ label, unit, value, onChange }) {
     return (
         <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">
-                {label}
-            </label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">{label}</label>
             <div className="relative">
                 <input
                     type="number"
@@ -638,7 +690,7 @@ function MacroField({ label, unit, value, onChange }) {
                     min="0"
                     step="any"
                     value={value}
-                    onChange={e => onChange(e.target.value)}
+                    onChange={(e) => onChange(e.target.value)}
                     placeholder="0"
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 pr-10 text-sm text-white outline-none focus:border-blue-500"
                 />
