@@ -25,6 +25,12 @@ functions/.env
 functions/.env.local
 functions/.runtimeconfig.json
 
+# Dumps grandes de OpenFoodFacts (no commitear nunca)
+*.jsonl
+*.jsonl.gz
+*.csv.gz
+.tmp_off*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

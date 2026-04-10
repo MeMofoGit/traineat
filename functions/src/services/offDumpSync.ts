@@ -3,7 +3,8 @@ import { createGunzip } from 'node:zlib';
 import { createInterface } from 'node:readline';
 import { logger } from 'firebase-functions/v2';
 import { getFirestore, FieldValue, WriteBatch } from 'firebase-admin/firestore';
-import { mapOffProduct } from './openfoodfacts';
+import { inferCategory } from './openfoodfacts';
+import type { MappedFood } from './openfoodfacts';
 
 /**
  * Streaming sync del dump JSONL.gz de OpenFoodFacts a la colección
@@ -91,7 +92,22 @@ export interface SyncResult {
 /**
  * Mínima forma raw que esperamos de cada línea del dump. La estructura
  * real tiene >300 campos, ignoramos todo lo demás.
+ *
+ * IMPORTANTE (2026-04-10): OFF cambió el formato del dump JSONL.
+ * El campo `nutriments` ahora está VACÍO en la mayoría de productos.
+ * Los datos nutricionales reales viven en:
+ *   `nutrition.aggregated_set.nutrients["energy-kcal"].value`
+ * en lugar de `nutriments["energy-kcal_100g"]`.
+ *
+ * Mantenemos los dos paths para backward compatibility.
  */
+interface NutrientEntry {
+  value?: number;
+  unit?: string;
+  value_string?: string;
+  value_computed?: number;
+}
+
 interface RawDumpProduct {
   code?: string;
   product_name?: string;
@@ -100,7 +116,14 @@ interface RawDumpProduct {
   brands?: string;
   countries_tags?: string[];
   categories_tags?: string[];
-  nutriments?: Record<string, unknown>;
+  nutriments?: Record<string, unknown>;  // old format (may be empty)
+  nutrition?: {                          // new format (2024+)
+    aggregated_set?: {
+      per?: string;
+      nutrients?: Record<string, NutrientEntry>;
+    };
+  };
+  nutriscore_grade?: string;
   image_front_small_url?: string;
 }
 
@@ -199,9 +222,9 @@ export async function runOffSync(opts: SyncOptions = {}): Promise<SyncResult> {
         continue;
       }
 
-      // Map a shape interno (reutiliza la función existente para coherencia
-      // con el flujo de lookupBarcode → API live)
-      const mapped = mapOffProduct(raw, barcode);
+      // Map a shape interno — usa el formato nuevo del dump (nutrition.aggregated_set)
+      // en lugar de mapOffProduct que lee del viejo formato API (nutriments._100g)
+      const mapped = mapDumpProduct(raw, barcode);
       if (!mapped) {
         productsSkipped++;
         continue;
@@ -279,11 +302,102 @@ export async function runOffSync(opts: SyncOptions = {}): Promise<SyncResult> {
 }
 
 /**
+ * Mapea un producto raw del dump JSONL al shape interno `MappedFood`.
+ * Lee nutrientes del formato nuevo (`nutrition.aggregated_set.nutrients`)
+ * con fallback al viejo (`nutriments._100g`).
+ *
+ * Devuelve null si falta info crítica (nombre vacío, macros incompletos).
+ */
+function mapDumpProduct(p: RawDumpProduct, barcode: string): MappedFood | null {
+  const kcal = getDumpNutrientValue(p, 'energy-kcal');
+  const protein = getDumpNutrientValue(p, 'proteins');
+  const carbs = getDumpNutrientValue(p, 'carbohydrates');
+  const fat = getDumpNutrientValue(p, 'fat');
+
+  if (kcal == null || protein == null || carbs == null || fat == null) return null;
+
+  const name = (p.product_name_es || p.product_name || p.product_name_en || '').trim();
+  if (!name) return null;
+
+  const food: MappedFood = {
+    name: name.slice(0, 80),
+    category: inferCategory(p.categories_tags),
+    defaultUnit: 'g',
+    servingSize: 100,
+    source: 'custom',
+    barcode,
+    macros: {
+      calories: round2(kcal),
+      protein: round2(protein),
+      carbs: round2(carbs),
+      fat: round2(fat),
+    },
+  };
+
+  if (p.brands) {
+    const firstBrand = p.brands.split(',')[0]?.trim();
+    if (firstBrand) food.brand = firstBrand.slice(0, 100);
+  }
+
+  // Optional macros
+  const sugars = getDumpNutrientValue(p, 'sugars');
+  const fiber = getDumpNutrientValue(p, 'fiber');
+  const saturated = getDumpNutrientValue(p, 'saturated-fat');
+  const salt = getDumpNutrientValue(p, 'salt');
+
+  if (typeof sugars === 'number' && sugars >= 0) food.macros.sugars = round2(sugars);
+  if (typeof fiber === 'number' && fiber >= 0) food.macros.fiber = round2(fiber);
+  if (typeof saturated === 'number' && saturated >= 0) food.macros.saturated = round2(saturated);
+  if (typeof salt === 'number' && salt >= 0) food.macros.salt = round2(salt);
+
+  return food;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Extrae el valor de un nutriente del dump, soportando AMBOS formatos:
+ *
+ * Formato nuevo (2024+): `nutrition.aggregated_set.nutrients["key"].value`
+ * Formato viejo:          `nutriments["key_100g"]`
+ *
+ * El dump oficial cambió de formato ~2024-2025. El campo `nutriments` ahora
+ * suele estar vacío pero `nutrition.aggregated_set` contiene los datos reales.
+ * Mantenemos ambos paths por si OFF revierte o mantiene mixed.
+ *
+ * @internal exportado para tests
+ */
+export function getDumpNutrientValue(
+  p: RawDumpProduct,
+  nutrientKey: string
+): number | null {
+  // 1. New format: nutrition.aggregated_set.nutrients[key].value
+  const agg = p.nutrition?.aggregated_set?.nutrients;
+  if (agg) {
+    const entry = agg[nutrientKey];
+    if (entry && typeof entry.value === 'number') {
+      return entry.value;
+    }
+  }
+
+  // 2. Old format fallback: nutriments[key_100g]
+  const n = p.nutriments || {};
+  const oldKey = nutrientKey + '_100g';
+  const oldVal = n[oldKey];
+  if (typeof oldVal === 'number') return oldVal;
+
+  return null;
+}
+
+/**
  * Filtra productos del dump:
  *   1. Debe tener al menos un country_tag de TARGET_COUNTRY_TAGS.
- *   2. Debe tener `code` (barcode).
- *   3. Debe tener algún `product_name*` no vacío.
- *   4. Debe tener nutriments básicos (calories, protein, carbs, fat).
+ *   2. Debe tener algún `product_name*` no vacío.
+ *   3. Debe tener los 4 macros básicos (kcal, protein, carbs, fat) >= 0.
+ *      Busca en el formato nuevo (`nutrition.aggregated_set`) con fallback
+ *      al viejo (`nutriments._100g`).
  *
  * @internal exportado para tests
  */
@@ -295,13 +409,17 @@ export function shouldKeepProduct(p: RawDumpProduct): boolean {
   const hasName = !!(p.product_name_es || p.product_name || p.product_name_en);
   if (!hasName) return false;
 
-  const n = p.nutriments || {};
-  const hasCals = typeof n['energy-kcal_100g'] === 'number' && (n['energy-kcal_100g'] as number) >= 0;
-  const hasProt = typeof n['proteins_100g'] === 'number' && (n['proteins_100g'] as number) >= 0;
-  const hasCarbs = typeof n['carbohydrates_100g'] === 'number' && (n['carbohydrates_100g'] as number) >= 0;
-  const hasFat = typeof n['fat_100g'] === 'number' && (n['fat_100g'] as number) >= 0;
+  const kcal = getDumpNutrientValue(p, 'energy-kcal');
+  const prot = getDumpNutrientValue(p, 'proteins');
+  const carbs = getDumpNutrientValue(p, 'carbohydrates');
+  const fat = getDumpNutrientValue(p, 'fat');
 
-  return hasCals && hasProt && hasCarbs && hasFat;
+  return (
+    typeof kcal === 'number' && kcal >= 0 &&
+    typeof prot === 'number' && prot >= 0 &&
+    typeof carbs === 'number' && carbs >= 0 &&
+    typeof fat === 'number' && fat >= 0
+  );
 }
 
 /**
