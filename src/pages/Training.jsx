@@ -29,6 +29,7 @@ import {
     CheckCircle2,
 } from 'lucide-react';
 import ExerciseModal from '../components/ExerciseModal';
+import { useToast } from '../components/Toast';
 
 const PHASE_DATE_FMT = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 function formatPhaseDateRange(dates) {
@@ -62,6 +63,7 @@ export default function Training() {
 
     const { firstPending, hasPending, markSkipped, markDoneElsewhere } = usePendingWorkouts();
     const location = useLocation();
+    const toast = useToast();
 
     const activePhaseId = plan.activePhaseId || plan.phases[0]?.id || 1;
     // Si se navega desde Dashboard con un día específico, usarlo como inicial
@@ -119,7 +121,12 @@ export default function Training() {
 
                 let seconds = 0;
                 if (isZeroRest) {
-                    seconds = 0; // Superserie — sin descanso
+                    seconds = 0;
+                    // Superserie: toast indicando el siguiente ejercicio
+                    const nextEx = routine?.exercises?.[exerciseIndex + 1];
+                    if (nextEx) {
+                        toast.info(`→ ${nextEx.name}`, 2000);
+                    }
                 } else if (r.includes('m')) {
                     seconds = parseInt(r) * 60;
                 } else if (r.includes('s')) {
