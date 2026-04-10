@@ -267,7 +267,7 @@ export default function Training() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => { setRestStartTime(Date.now()); }} className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs font-bold">+30s</button>
+                            <button onClick={() => setRestDuration(prev => prev + 30)} className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs font-bold">+30s</button>
                             <button onClick={() => setShowRestTimer(false)} className="p-2 text-slate-400 hover:text-white"><X size={20} /></button>
                         </div>
                     </div>
@@ -660,22 +660,33 @@ function SessionTimer({ startTime, pauses = [] }) {
 
 function RestCountdown({ startTime, duration, onComplete }) {
     const [left, setLeft] = useState(duration);
+    const hasCompletedRef = React.useRef(false);
+
+    useEffect(() => {
+        hasCompletedRef.current = false;
+    }, [startTime, duration]);
 
     useEffect(() => {
         const interval = setInterval(() => {
             const elapsed = (Date.now() - startTime) / 1000;
             const remaining = Math.ceil(duration - elapsed);
-            if (remaining <= 0) {
-                setLeft(0);
-                // onComplete(); 
-            } else {
-                setLeft(remaining);
+            setLeft(remaining);
+            // Notificar una sola vez cuando llega a 0, pero el timer sigue
+            if (remaining <= 0 && !hasCompletedRef.current) {
+                hasCompletedRef.current = true;
+                if (onComplete) onComplete();
             }
         }, 100);
         return () => clearInterval(interval);
-    }, [startTime, duration]);
+    }, [startTime, duration, onComplete]);
 
-    return <div className="text-2xl font-bold text-white font-mono">{left}s</div>
+    const isOvertime = left <= 0;
+
+    return (
+        <div className={`text-2xl font-bold font-mono ${isOvertime ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
+            {isOvertime ? `${left}s` : `${left}s`}
+        </div>
+    );
 }
 
 function WorkoutStatsModal({ session, onClose }) {

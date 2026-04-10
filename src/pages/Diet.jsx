@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { usePlan } from '../hooks/usePlan';
 import { useMacros } from '../hooks/useMacros';
 import { useEntitlements } from '../hooks/useEntitlements';
-import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, Sparkles, Lock, Refrigerator } from 'lucide-react';
+import { ChefHat, Flame, Edit2, Plus, Trash2, Check, X, Search, PieChart, Copy, Sparkles, Lock, Refrigerator, Info } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
 
 function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     const { customFoods } = usePlan();
+    const { calculateItemMacros } = useMacros();
     const entitlements = useEntitlements();
     const canCreateCustom = entitlements.customFoods;
 
@@ -77,21 +78,15 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
             <div className="space-y-2">
                 {items.map((item, i) => {
                     const catInfo = Object.values(FOOD_CATEGORIES).find(c => c.id === item.category) || FOOD_CATEGORIES.OTHER;
+                    const itemMacros = calculateItemMacros(item);
                     return (
-                        <div key={i} className="flex items-center justify-between bg-slate-900 border border-slate-700/50 p-2 rounded-xl">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${catInfo.bg} ${catInfo.color} border ${catInfo.border}`}>
-                                    {catInfo.icon}
-                                </div>
-                                <div className="text-sm">
-                                    <div className="text-slate-200 font-bold">{item.name}</div>
-                                    <div className="text-xs text-slate-500">{item.quantity} {item.unit}</div>
-                                </div>
-                            </div>
-                            <button onClick={() => handleRemoveItem(i)} className="p-2 text-slate-500 hover:text-red-400">
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
+                        <FoodItemRow
+                            key={i}
+                            item={item}
+                            catInfo={catInfo}
+                            macros={itemMacros}
+                            onRemove={() => handleRemoveItem(i)}
+                        />
                     );
                 })}
             </div>
@@ -527,6 +522,77 @@ export default function Diet() {
                         )
                     })}
             </div>
+        </div>
+    );
+}
+
+/**
+ * BUG-5: item de comida con botón de info nutricional expandible.
+ * Al tocar "info" se despliega una mini-etiqueta con P/C/G/kcal
+ * para la cantidad específica del item.
+ */
+function FoodItemRow({ item, catInfo, macros, onRemove }) {
+    const [showInfo, setShowInfo] = useState(false);
+
+    return (
+        <div className="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between p-2">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${catInfo.bg} ${catInfo.color} border ${catInfo.border}`}>
+                        {catInfo.icon}
+                    </div>
+                    <div className="text-sm min-w-0">
+                        <div className="text-slate-200 font-bold truncate">{item.name}</div>
+                        <div className="text-xs text-slate-500">{item.quantity} {item.unit}</div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        onClick={() => setShowInfo(s => !s)}
+                        className={`p-2 transition-colors ${showInfo ? 'text-blue-400' : 'text-slate-600 hover:text-blue-400'}`}
+                        title="Ver info nutricional"
+                    >
+                        <Info size={14} />
+                    </button>
+                    <button onClick={onRemove} className="p-2 text-slate-500 hover:text-red-400">
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {showInfo && macros && (
+                <div className="px-3 pb-2 pt-0">
+                    <div className="bg-slate-950 rounded-lg p-2.5 border border-slate-800">
+                        <div className="flex justify-between items-baseline mb-1.5">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                                Por {item.quantity} {item.unit}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-white">
+                                {macros.calories} kcal
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <div className="text-xs font-bold text-rose-400">{macros.protein}g</div>
+                                <div className="text-[9px] text-slate-500">Proteína</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-amber-400">{macros.carbs}g</div>
+                                <div className="text-[9px] text-slate-500">Carbos</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-yellow-500">{macros.fat}g</div>
+                                <div className="text-[9px] text-slate-500">Grasas</div>
+                            </div>
+                        </div>
+                        {macros.orphan && (
+                            <div className="text-[10px] text-amber-400 mt-1.5 text-center">
+                                Producto no encontrado — macros aproximados
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

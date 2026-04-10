@@ -232,6 +232,28 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
         return () => window.removeEventListener('keydown', handleKey);
     }, [isOpen, form]);
 
+    // BUG-4 FIX: botón "atrás" del navegador cierra el modal en lugar de la página.
+    const historyPushedRef = useRef(false);
+    useEffect(() => {
+        if (isOpen) {
+            window.history.pushState({ modal: 'customFood' }, '');
+            historyPushedRef.current = true;
+            const handlePop = () => {
+                historyPushedRef.current = false;
+                onClose();
+            };
+            window.addEventListener('popstate', handlePop);
+            return () => {
+                window.removeEventListener('popstate', handlePop);
+                // Si el modal se cierra normalmente (no por popstate), limpiar el state
+                if (historyPushedRef.current) {
+                    historyPushedRef.current = false;
+                    window.history.back();
+                }
+            };
+        }
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     const isDirty = mode === 'create'

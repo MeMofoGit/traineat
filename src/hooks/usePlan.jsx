@@ -457,7 +457,66 @@ export function PlanProvider({ children }) {
             newRoutines[phaseId] = { ...newRoutines[phaseId] }; // Copy phase
             newRoutines[phaseId][dayId] = { ...currentDay, exercises };
 
-            return { ...prev, routines: newRoutines };
+            // BUG-1 FIX: si hay sesión activa en este día/fase, remapear
+            // completedSets para que las marcas sigan al ejercicio que se movió.
+            // Las claves son "exerciseIndex-setIndex" — al reordenar, los
+            // indices cambian y las marcas deben reflejar los nuevos.
+            let newSession = prev.activeSession;
+            if (newSession && newSession.phaseId === phaseId && newSession.dayId === dayId) {
+                const oldCompleted = newSession.completedSets || {};
+                const remapped = {};
+
+                // Construir mapa de "old index → new index"
+                // Después del splice: el ejercicio que estaba en fromIndex
+                // ahora está en toIndex. Los demás se desplazan.
+                const indexMap = {};
+                const len = exercises.length;
+                for (let i = 0; i < len; i++) {
+                    // ¿Qué índice tenía este ejercicio ANTES del move?
+                    let oldIdx;
+                    if (i === toIndex) {
+                        oldIdx = fromIndex;
+                    } else if (fromIndex < toIndex) {
+                        // Movido hacia abajo: los de [from+1..to] bajan 1
+                        oldIdx = (i > fromIndex && i <= toIndex) ? i : i === toIndex ? fromIndex : i;
+                        // Simplificación: recalcular
+                        if (i >= fromIndex && i < toIndex) oldIdx = i + 1;
+                        else if (i === toIndex) oldIdx = fromIndex;
+                        else oldIdx = i;
+                    } else {
+                        // Movido hacia arriba: los de [to..from-1] suben 1
+                        if (i > toIndex && i <= fromIndex) oldIdx = i - 1;
+                        else if (i === toIndex) oldIdx = fromIndex;
+                        else oldIdx = i;
+                    }
+                    indexMap[oldIdx] = i;
+                }
+
+                for (const [key, value] of Object.entries(oldCompleted)) {
+                    const parts = key.split('-');
+                    const exIdx = parseInt(parts[0], 10);
+                    const setIdx = parts[1];
+                    const newExIdx = indexMap[exIdx] ?? exIdx;
+                    remapped[`${newExIdx}-${setIdx}`] = value;
+                }
+
+                // También remapear lastSetContext.exerciseIndex si aplica
+                let newLastSetContext = newSession.lastSetContext;
+                if (newLastSetContext && typeof newLastSetContext.exerciseIndex === 'number') {
+                    const mappedIdx = indexMap[newLastSetContext.exerciseIndex];
+                    if (mappedIdx !== undefined && mappedIdx !== newLastSetContext.exerciseIndex) {
+                        newLastSetContext = { ...newLastSetContext, exerciseIndex: mappedIdx };
+                    }
+                }
+
+                newSession = {
+                    ...newSession,
+                    completedSets: remapped,
+                    lastSetContext: newLastSetContext,
+                };
+            }
+
+            return { ...prev, routines: newRoutines, activeSession: newSession };
         });
     };
 
