@@ -1,7 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { usePlan } from '../hooks/usePlan';
+import { usePendingWorkouts } from '../hooks/usePendingWorkouts';
 import { EXERCISE_TEMPLATES } from '../data/templates';
-import { Dumbbell, Repeat, Timer, Calendar, ChevronLeft, ChevronRight, Edit2, Plus, Trash2, ArrowUp, ArrowDown, ArrowRightCircle, X, Search, Check, Play, Pause, AlertCircle, Save, Info } from 'lucide-react';
+import {
+    Dumbbell,
+    Repeat,
+    Timer,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    Edit2,
+    Plus,
+    Trash2,
+    ArrowUp,
+    ArrowDown,
+    ArrowRightCircle,
+    X,
+    Search,
+    Check,
+    Play,
+    Pause,
+    AlertCircle,
+    Save,
+    Info,
+    Zap,
+    SkipForward,
+    CheckCircle2,
+} from 'lucide-react';
 import ExerciseModal from '../components/ExerciseModal';
 
 const PHASE_DATE_FMT = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
@@ -17,7 +42,6 @@ function formatPhaseDateRange(dates) {
     return `${fmt(dates.start)} – ${fmt(dates.end)}`;
 }
 
-
 export default function Training() {
     const {
         plan,
@@ -32,8 +56,10 @@ export default function Training() {
         finishSession,
         toggleSessionPause,
         toggleSetCompletion,
-        setActivePhaseId
+        setActivePhaseId,
     } = usePlan();
+
+    const { firstPending, hasPending, markSkipped, markDoneElsewhere } = usePendingWorkouts();
 
     const activePhaseId = plan.activePhaseId || plan.phases[0]?.id || 1;
     const [activeDay, setActiveDay] = useState(new Date().getDay());
@@ -56,15 +82,15 @@ export default function Training() {
 
     // Sync activePhaseId: si la fase guardada ya no existe, saltamos a la primera disponible
     useEffect(() => {
-        if (plan.phases.length > 0 && !plan.phases.find(p => p.id === activePhaseId)) {
+        if (plan.phases.length > 0 && !plan.phases.find((p) => p.id === activePhaseId)) {
             setActivePhaseId(plan.phases[0].id);
         }
     }, [plan.phases, activePhaseId, setActivePhaseId]);
 
     const getRoutine = (phase, day) => {
         const p = plan.routines[phase];
-        if (!p) return { label: "Día Nuevo", focus: "Sin objetivo", exercises: [] };
-        return p[day] || { label: "Descanso", exercises: [] };
+        if (!p) return { label: 'Día Nuevo', focus: 'Sin objetivo', exercises: [] };
+        return p[day] || { label: 'Descanso', exercises: [] };
     };
 
     const routine = getRoutine(activePhaseId, activeDay);
@@ -79,7 +105,7 @@ export default function Training() {
             const ex = routine?.exercises?.[exerciseIndex];
             if (ex) {
                 let seconds = 60;
-                const r = ex.rest?.toLowerCase() || "";
+                const r = ex.rest?.toLowerCase() || '';
                 if (r.includes('m')) seconds = parseInt(r) * 60;
                 else if (r.includes('s')) seconds = parseInt(r);
                 else if (!isNaN(parseInt(r))) seconds = parseInt(r);
@@ -91,20 +117,20 @@ export default function Training() {
         }
     }, [plan.activeSession?.lastSetContext, routine?.exercises]);
     /* eslint-enable react-hooks/set-state-in-effect */
-    const activePhase = plan.phases.find(p => p.id === activePhaseId) || {};
+    const activePhase = plan.phases.find((p) => p.id === activePhaseId) || {};
 
     // Helper: Is this the active session day?
-    const isSessionActiveHere = plan.activeSession && plan.activeSession.phaseId === activePhaseId && plan.activeSession.dayId === activeDay;
+    const isSessionActiveHere =
+        plan.activeSession && plan.activeSession.phaseId === activePhaseId && plan.activeSession.dayId === activeDay;
     const isSessionActiveElsewhere = plan.activeSession && !isSessionActiveHere;
 
     // Helper: Completed session today?
-    const completedSession = plan.history?.find(h =>
-        h.phaseId === activePhaseId &&
-        h.dayId === activeDay &&
-        new Date(h.date).toDateString() === new Date().toDateString()
+    const completedSession = plan.history?.find(
+        (h) =>
+            h.phaseId === activePhaseId &&
+            h.dayId === activeDay &&
+            new Date(h.date).toDateString() === new Date().toDateString()
     );
-
-
 
     const handleAddExercise = (template = null) => {
         addExercise(activePhaseId, activeDay, template);
@@ -112,10 +138,10 @@ export default function Training() {
         setSearchTerm(''); // Reset search
     };
 
-    const categories = ['Todos', ...new Set(EXERCISE_TEMPLATES.map(t => t.category))];
+    const categories = ['Todos', ...new Set(EXERCISE_TEMPLATES.map((t) => t.category))];
 
     // Filter Logic
-    const filteredTemplates = EXERCISE_TEMPLATES.filter(t => {
+    const filteredTemplates = EXERCISE_TEMPLATES.filter((t) => {
         const matchesCategory = selectedCategory === 'Todos' || t.category === selectedCategory;
         const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
         return matchesCategory && matchesSearch;
@@ -142,7 +168,10 @@ export default function Training() {
                                 <Plus size={18} className="text-blue-400" />
                                 Añadir Ejercicio
                             </h3>
-                            <button onClick={() => setShowTemplates(false)} className="text-slate-400 hover:text-white transition-colors">
+                            <button
+                                onClick={() => setShowTemplates(false)}
+                                className="text-slate-400 hover:text-white transition-colors"
+                            >
                                 <X size={24} />
                             </button>
                         </div>
@@ -163,14 +192,15 @@ export default function Training() {
 
                             {/* Category Chips */}
                             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                {categories.map(cat => (
+                                {categories.map((cat) => (
                                     <button
                                         key={cat}
                                         onClick={() => setSelectedCategory(cat)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${selectedCategory === cat
-                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg'
-                                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-600'
-                                            }`}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
+                                            selectedCategory === cat
+                                                ? 'bg-blue-600 border-blue-500 text-white shadow-lg'
+                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-600'
+                                        }`}
                                     >
                                         {cat}
                                     </button>
@@ -194,19 +224,30 @@ export default function Training() {
                                     className="w-full text-left p-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 flex justify-between items-center transition-all group"
                                 >
                                     <div>
-                                        <div className="text-slate-200 font-bold text-sm group-hover:text-blue-300 transition-colors">{t.name}</div>
+                                        <div className="text-slate-200 font-bold text-sm group-hover:text-blue-300 transition-colors">
+                                            {t.name}
+                                        </div>
                                         <div className="text-xs text-slate-500 flex gap-2 mt-1">
-                                            <span>{t.sets} x {t.reps}</span>
+                                            <span>
+                                                {t.sets} x {t.reps}
+                                            </span>
                                         </div>
                                     </div>
-                                    <span className="text-[10px] text-slate-500 bg-slate-900 border border-slate-700 px-2 py-1 rounded uppercase tracking-wider font-bold">{t.category}</span>
+                                    <span className="text-[10px] text-slate-500 bg-slate-900 border border-slate-700 px-2 py-1 rounded uppercase tracking-wider font-bold">
+                                        {t.category}
+                                    </span>
                                 </button>
                             ))}
 
                             {filteredTemplates.length === 0 && (
                                 <div className="text-center py-8 text-slate-500 text-sm">
                                     <p className="mb-2">No se encontraron ejercicios "Core".</p>
-                                    <button onClick={() => setSelectedCategory('Todos')} className="text-blue-400 underline">Ver todos</button>
+                                    <button
+                                        onClick={() => setSelectedCategory('Todos')}
+                                        className="text-blue-400 underline"
+                                    >
+                                        Ver todos
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -220,7 +261,7 @@ export default function Training() {
                     <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-4 shadow-2xl">
                         <h3 className="font-bold text-white mb-4">Mover a otro día...</h3>
                         <div className="grid grid-cols-2 gap-2">
-                            {days.map(d => (
+                            {days.map((d) => (
                                 <button
                                     key={d.id}
                                     onClick={() => {
@@ -233,7 +274,12 @@ export default function Training() {
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => setMovingExIndex(null)} className="mt-4 w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 font-bold transition-colors">Cancelar</button>
+                        <button
+                            onClick={() => setMovingExIndex(null)}
+                            className="mt-4 w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 font-bold transition-colors"
+                        >
+                            Cancelar
+                        </button>
                     </div>
                 </div>
             )}
@@ -256,9 +302,54 @@ export default function Training() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => setRestDuration(prev => prev + 30)} className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs font-bold">+30s</button>
-                            <button onClick={() => setShowRestTimer(false)} className="p-2 text-slate-400 hover:text-white"><X size={20} /></button>
+                            <button
+                                onClick={() => setRestDuration((prev) => prev + 30)}
+                                className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs font-bold"
+                            >
+                                +30s
+                            </button>
+                            <button
+                                onClick={() => setShowRestTimer(false)}
+                                className="p-2 text-slate-400 hover:text-white"
+                            >
+                                <X size={20} />
+                            </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Banner de entreno pendiente (Fase 5b) */}
+            {hasPending && firstPending && !plan.activeSession && (
+                <div className="bg-amber-950/30 border border-amber-700/50 rounded-2xl p-4 mb-4 animate-in slide-in-from-top-4 duration-300">
+                    <div className="flex items-start gap-3 mb-3">
+                        <div className="bg-amber-900/40 p-2 rounded-lg text-amber-400 shrink-0">
+                            <Zap size={18} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-amber-200">{firstPending.routineLabel}</div>
+                            <div className="text-xs text-amber-200/60">Pendiente del {firstPending.label}</div>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setActiveDay(firstPending.dayId)}
+                            className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
+                        >
+                            <Play size={12} fill="currentColor" /> Entrenar hoy
+                        </button>
+                        <button
+                            onClick={() => markSkipped(firstPending.dayId)}
+                            className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                        >
+                            <SkipForward size={12} /> Saltar
+                        </button>
+                        <button
+                            onClick={() => markDoneElsewhere(firstPending.dayId)}
+                            className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                        >
+                            <CheckCircle2 size={12} /> Ya lo hice
+                        </button>
                     </div>
                 </div>
             )}
@@ -266,12 +357,17 @@ export default function Training() {
             {/* Header Phase Navigation */}
             <header>
                 <div className="flex justify-between items-center mb-4 bg-slate-800 p-2 rounded-xl border border-slate-700/50">
-                    <button onClick={() => setActivePhaseId(Math.max(1, activePhaseId - 1))} className="p-2 hover:bg-slate-700 rounded-full text-blue-400 transition-colors">
+                    <button
+                        onClick={() => setActivePhaseId(Math.max(1, activePhaseId - 1))}
+                        className="p-2 hover:bg-slate-700 rounded-full text-blue-400 transition-colors"
+                    >
                         <ChevronLeft size={24} />
                     </button>
 
                     <div className="flex-1 text-center">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-1">Fase {activePhaseId}</span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-1">
+                            Fase {activePhaseId}
+                        </span>
                         {editingHeader ? (
                             <div className="flex flex-col gap-2 items-center">
                                 <input
@@ -286,14 +382,22 @@ export default function Training() {
                                         type="date"
                                         className="bg-slate-900 border border-slate-700 text-slate-200 px-2 py-1 rounded"
                                         value={activePhase.dates?.start || ''}
-                                        onChange={(e) => updatePhase(activePhaseId, { dates: { ...(activePhase.dates || {}), start: e.target.value } })}
+                                        onChange={(e) =>
+                                            updatePhase(activePhaseId, {
+                                                dates: { ...(activePhase.dates || {}), start: e.target.value },
+                                            })
+                                        }
                                     />
                                     <span className="text-slate-500">→</span>
                                     <input
                                         type="date"
                                         className="bg-slate-900 border border-slate-700 text-slate-200 px-2 py-1 rounded"
                                         value={activePhase.dates?.end || ''}
-                                        onChange={(e) => updatePhase(activePhaseId, { dates: { ...(activePhase.dates || {}), end: e.target.value } })}
+                                        onChange={(e) =>
+                                            updatePhase(activePhaseId, {
+                                                dates: { ...(activePhase.dates || {}), end: e.target.value },
+                                            })
+                                        }
                                     />
                                 </div>
                                 <button
@@ -318,14 +422,17 @@ export default function Training() {
                         )}
                     </div>
 
-                    <button onClick={() => setActivePhaseId(Math.min(3, activePhaseId + 1))} className="p-2 hover:bg-slate-700 rounded-full text-blue-400 transition-colors">
+                    <button
+                        onClick={() => setActivePhaseId(Math.min(3, activePhaseId + 1))}
+                        className="p-2 hover:bg-slate-700 rounded-full text-blue-400 transition-colors"
+                    >
                         <ChevronRight size={24} />
                     </button>
                 </div>
 
                 {/* Day Selector */}
                 <div className="flex justify-between bg-slate-800/50 p-2 rounded-xl overflow-x-auto gap-2 no-scrollbar">
-                    {days.map(d => (
+                    {days.map((d) => (
                         <button
                             key={d.id}
                             onClick={() => setActiveDay(d.id)}
@@ -359,18 +466,24 @@ export default function Training() {
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={toggleSessionPause}
-                                    className={`p-3 rounded-full transition-all ${plan.activeSession.pauses?.length > 0 && !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end
-                                        ? 'bg-amber-500/20 text-amber-500 animate-pulse' // Paused
-                                        : 'bg-emerald-500/20 text-emerald-400' // Running
-                                        }`}
+                                    className={`p-3 rounded-full transition-all ${
+                                        plan.activeSession.pauses?.length > 0 &&
+                                        !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end
+                                            ? 'bg-amber-500/20 text-amber-500 animate-pulse' // Paused
+                                            : 'bg-emerald-500/20 text-emerald-400' // Running
+                                    }`}
                                 >
-                                    {plan.activeSession.pauses?.length > 0 && !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end
-                                        ? <Play size={20} fill="currentColor" />
-                                        : <Pause size={20} fill="currentColor" />
-                                    }
+                                    {plan.activeSession.pauses?.length > 0 &&
+                                    !plan.activeSession.pauses[plan.activeSession.pauses.length - 1].end ? (
+                                        <Play size={20} fill="currentColor" />
+                                    ) : (
+                                        <Pause size={20} fill="currentColor" />
+                                    )}
                                 </button>
                                 <div>
-                                    <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">Tiempo Activo</div>
+                                    <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                        Tiempo Activo
+                                    </div>
                                     <SessionTimer
                                         startTime={plan.activeSession.startTime}
                                         pauses={plan.activeSession.pauses}
@@ -433,14 +546,9 @@ export default function Training() {
 
             {/* Stats Modal */}
             {showStats && <WorkoutStatsModal session={completedSession} onClose={() => setShowStats(false)} />}
-            
+
             {/* Exercise Info Modal */}
-            {viewingExercise && (
-                <ExerciseModal 
-                    exercise={viewingExercise} 
-                    onClose={() => setViewingExercise(null)} 
-                />
-            )}
+            {viewingExercise && <ExerciseModal exercise={viewingExercise} onClose={() => setViewingExercise(null)} />}
 
             <div className="space-y-4">
                 {/* Day Label Edit ... (Keep existing Day Label Edit block) */}
@@ -453,7 +561,7 @@ export default function Training() {
                             <input
                                 className="bg-slate-900 text-blue-400 font-bold uppercase text-sm p-2 rounded border border-blue-500/50 outline-none"
                                 value={routine.label || ''}
-                                onChange={e => updateDayRoutine(activePhaseId, activeDay, { label: e.target.value })}
+                                onChange={(e) => updateDayRoutine(activePhaseId, activeDay, { label: e.target.value })}
                                 placeholder="TÍTULO (ej: Torso)"
                             />
                             <textarea
@@ -463,15 +571,25 @@ export default function Training() {
                                 onChange={(e) => updateDayRoutine(activePhaseId, activeDay, { focus: e.target.value })}
                                 placeholder="Objetivo principal..."
                             />
-                            <button onClick={() => setEditingDayInfo(false)} className="bg-blue-600 text-white px-3 py-1 text-xs rounded-lg font-bold self-end shadow-lg">Guardar</button>
+                            <button
+                                onClick={() => setEditingDayInfo(false)}
+                                className="bg-blue-600 text-white px-3 py-1 text-xs rounded-lg font-bold self-end shadow-lg"
+                            >
+                                Guardar
+                            </button>
                         </div>
                     ) : (
                         <div onClick={() => setEditingDayInfo(true)} className="cursor-pointer relative z-10 group">
                             <h3 className="text-blue-400 text-sm font-bold uppercase mb-1 flex items-center gap-2">
-                                {routine.label || "Día Sin Asignar"}
-                                <Edit2 size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500" />
+                                {routine.label || 'Día Sin Asignar'}
+                                <Edit2
+                                    size={12}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500"
+                                />
                             </h3>
-                            <p className="text-slate-300 text-sm leading-relaxed">{routine.focus || "Toca para añadir descripción/objetivos."}</p>
+                            <p className="text-slate-300 text-sm leading-relaxed">
+                                {routine.focus || 'Toca para añadir descripción/objetivos.'}
+                            </p>
                         </div>
                     )}
                 </div>
@@ -495,23 +613,31 @@ export default function Training() {
                     const isActive = plan.activeSession && !isComplete && setsDoneCount > 0;
 
                     return (
-                        <div key={i} className={`rounded-2xl p-5 border shadow-sm relative group transition-all duration-500 ${isComplete
-                            ? 'bg-emerald-900/10 border-emerald-500/30'
-                            : isActive
-                                ? 'bg-blue-900/10 border-blue-500/30'
-                                : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                            }`}>
+                        <div
+                            key={i}
+                            className={`rounded-2xl p-5 border shadow-sm relative group transition-all duration-500 ${
+                                isComplete
+                                    ? 'bg-emerald-900/10 border-emerald-500/30'
+                                    : isActive
+                                      ? 'bg-blue-900/10 border-blue-500/30'
+                                      : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                            }`}
+                        >
                             {/* Completion glow */}
-                            {isComplete && <div className="absolute inset-0 bg-emerald-500/5 rounded-2xl pointer-events-none" />}
+                            {isComplete && (
+                                <div className="absolute inset-0 bg-emerald-500/5 rounded-2xl pointer-events-none" />
+                            )}
 
                             <div className="flex justify-between items-start mb-3 gap-3 relative z-10">
                                 <input
                                     className={`font-bold text-lg bg-transparent outline-none w-full border-b border-transparent focus:border-blue-500/50 transition-all placeholder-slate-600 ${isComplete ? 'text-emerald-400 line-through decoration-emerald-500/50' : 'text-slate-100'}`}
                                     value={ex.name}
-                                    onChange={(e) => updateExercise(activePhaseId, activeDay, i, { name: e.target.value })}
+                                    onChange={(e) =>
+                                        updateExercise(activePhaseId, activeDay, i, { name: e.target.value })
+                                    }
                                     placeholder="Nombre Ejercicio"
                                 />
-                                <button 
+                                <button
                                     onClick={() => setViewingExercise(ex)}
                                     className="p-2 text-slate-500 hover:text-blue-400 transition-colors"
                                 >
@@ -519,14 +645,39 @@ export default function Training() {
                                 </button>
                                 <div className="flex gap-1 shrink-0">
                                     {/* Reorder Buttons */}
-                                    <button onClick={() => i > 0 && reorderExercises(activePhaseId, activeDay, i, i - 1)} className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all" disabled={i === 0}><ArrowUp size={14} /></button>
-                                    <button onClick={() => i < routine.exercises.length - 1 && reorderExercises(activePhaseId, activeDay, i, i + 1)} className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all" disabled={i === routine.exercises.length - 1}><ArrowDown size={14} /></button>
+                                    <button
+                                        onClick={() => i > 0 && reorderExercises(activePhaseId, activeDay, i, i - 1)}
+                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                                        disabled={i === 0}
+                                    >
+                                        <ArrowUp size={14} />
+                                    </button>
+                                    <button
+                                        onClick={() =>
+                                            i < routine.exercises.length - 1 &&
+                                            reorderExercises(activePhaseId, activeDay, i, i + 1)
+                                        }
+                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-blue-400 hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                                        disabled={i === routine.exercises.length - 1}
+                                    >
+                                        <ArrowDown size={14} />
+                                    </button>
 
                                     {/* Move to... */}
-                                    <button onClick={() => setMovingExIndex(i)} className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-green-400 hover:bg-slate-800 transition-all ml-1"><ArrowRightCircle size={14} /></button>
+                                    <button
+                                        onClick={() => setMovingExIndex(i)}
+                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-green-400 hover:bg-slate-800 transition-all ml-1"
+                                    >
+                                        <ArrowRightCircle size={14} />
+                                    </button>
 
                                     {/* Delete */}
-                                    <button onClick={() => deleteExercise(activePhaseId, activeDay, i)} className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-red-400 hover:bg-slate-800 transition-all ml-1"><Trash2 size={14} /></button>
+                                    <button
+                                        onClick={() => deleteExercise(activePhaseId, activeDay, i)}
+                                        className="p-1.5 rounded-lg bg-slate-900 text-slate-500 hover:text-red-400 hover:bg-slate-800 transition-all ml-1"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
                                 </div>
                             </div>
 
@@ -540,20 +691,23 @@ export default function Training() {
                                                 key={setIdx}
                                                 onClick={() => toggleSetCompletion(i, setIdx)}
                                                 disabled={!plan.activeSession}
-                                                className={`h-8 w-12 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-all ${done
-                                                    ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-500/20 scale-105'
-                                                    : plan.activeSession
-                                                        ? 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                                                        : 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                                                    }`}
+                                                className={`h-8 w-12 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-all ${
+                                                    done
+                                                        ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-500/20 scale-105'
+                                                        : plan.activeSession
+                                                          ? 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                                                          : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                                                }`}
                                             >
                                                 {done ? <Check size={16} strokeWidth={4} /> : setIdx + 1}
                                             </button>
-                                        )
+                                        );
                                     })}
                                 </div>
                                 {!plan.activeSession && !completedSession && (
-                                    <p className="text-[10px] text-slate-500 mt-2 italic">Inicia el entreno para marcar series.</p>
+                                    <p className="text-[10px] text-slate-500 mt-2 italic">
+                                        Inicia el entreno para marcar series.
+                                    </p>
                                 )}
                             </div>
 
@@ -564,7 +718,9 @@ export default function Training() {
                                     <input
                                         className="bg-transparent outline-none w-full text-slate-200 font-bold"
                                         value={ex.reps}
-                                        onChange={e => updateExercise(activePhaseId, activeDay, i, { reps: e.target.value })}
+                                        onChange={(e) =>
+                                            updateExercise(activePhaseId, activeDay, i, { reps: e.target.value })
+                                        }
                                     />
                                 </div>
                                 <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 p-2 rounded-lg">
@@ -572,12 +728,14 @@ export default function Training() {
                                     <input
                                         className="bg-transparent outline-none w-full text-slate-200 font-bold"
                                         value={ex.rest}
-                                        onChange={e => updateExercise(activePhaseId, activeDay, i, { rest: e.target.value })}
+                                        onChange={(e) =>
+                                            updateExercise(activePhaseId, activeDay, i, { rest: e.target.value })
+                                        }
                                     />
                                 </div>
                             </div>
                         </div>
-                    )
+                    );
                 })}
 
                 <button
@@ -602,26 +760,34 @@ function StatEditable({ label, value, onSave }) {
     }, [value]);
 
     // Icon mapping simple
-    const icon = label === 'Series' ? <Dumbbell size={14} /> : label === 'Reps' ? <Repeat size={14} /> : <Timer size={14} />;
+    const icon =
+        label === 'Series' ? <Dumbbell size={14} /> : label === 'Reps' ? <Repeat size={14} /> : <Timer size={14} />;
 
-    if (editing) return (
-        <input
-            autoFocus
-            className="bg-slate-900 border border-blue-500 text-white text-center rounded w-full p-2"
-            value={val}
-            onChange={e => setVal(e.target.value)}
-            onBlur={() => { onSave(val); setEditing(false); }}
-            onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-        />
-    )
+    if (editing)
+        return (
+            <input
+                autoFocus
+                className="bg-slate-900 border border-blue-500 text-white text-center rounded w-full p-2"
+                value={val}
+                onChange={(e) => setVal(e.target.value)}
+                onBlur={() => {
+                    onSave(val);
+                    setEditing(false);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+            />
+        );
 
     return (
-        <div onClick={() => setEditing(true)} className="flex flex-col items-center bg-slate-900/50 p-2 rounded-lg cursor-pointer hover:bg-slate-900">
+        <div
+            onClick={() => setEditing(true)}
+            className="flex flex-col items-center bg-slate-900/50 p-2 rounded-lg cursor-pointer hover:bg-slate-900"
+        >
             <div className="text-slate-400 mb-1">{icon}</div>
             <div className="font-bold text-slate-200">{value}</div>
             <div className="text-[10px] text-slate-500 uppercase">{label}</div>
         </div>
-    )
+    );
 }
 
 function SessionTimer({ startTime, pauses = [] }) {
@@ -706,9 +872,15 @@ function WorkoutStatsModal({ session, onClose }) {
                 <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 sticky top-0 z-10">
                     <div>
                         <h3 className="font-bold text-white text-lg">Resumen de Sesión</h3>
-                        <p className="text-xs text-slate-400">{new Date(session.date).toLocaleDateString()} • {new Date(session.date).toLocaleTimeString()}</p>
+                        <p className="text-xs text-slate-400">
+                            {new Date(session.date).toLocaleDateString()} •{' '}
+                            {new Date(session.date).toLocaleTimeString()}
+                        </p>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+                    <button
+                        onClick={onClose}
+                        className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
+                    >
                         <X size={20} />
                     </button>
                 </div>
@@ -716,9 +888,10 @@ function WorkoutStatsModal({ session, onClose }) {
                 <div className="p-6 space-y-8">
                     {/* Ring Chart: Work vs Rest */}
                     <div className="flex flex-col items-center">
-                        <div className="relative size-48 rounded-full flex items-center justify-center mb-4"
+                        <div
+                            className="relative size-48 rounded-full flex items-center justify-center mb-4"
                             style={{
-                                background: `conic-gradient(#10b981 ${workPct}%, #3b82f6 ${workPct}% 100%)`
+                                background: `conic-gradient(#10b981 ${workPct}%, #3b82f6 ${workPct}% 100%)`,
                             }}
                         >
                             <div className="absolute inset-2 bg-slate-900 rounded-full flex flex-col items-center justify-center z-10">
@@ -749,7 +922,8 @@ function WorkoutStatsModal({ session, onClose }) {
                         <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                             <div className="text-slate-400 text-xs uppercase font-bold mb-1">Ritmo</div>
                             <div className="text-2xl font-bold text-white flex items-baseline gap-1">
-                                {totalDuration > 0 ? (totalSets / (totalDuration / 3600)).toFixed(1) : 0} <span className="text-xs text-slate-500">Series/h</span>
+                                {totalDuration > 0 ? (totalSets / (totalDuration / 3600)).toFixed(1) : 0}{' '}
+                                <span className="text-xs text-slate-500">Series/h</span>
                             </div>
                         </div>
                     </div>
@@ -776,10 +950,15 @@ function WorkoutStatsModal({ session, onClose }) {
                                         >
                                             {/* Tooltip */}
                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded text-[10px] whitespace-nowrap hidden group-hover:block z-20 border border-slate-700">
-                                                Serie {log.setIndex + 1} ({new Date(log.timestamp).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' })})
+                                                Serie {log.setIndex + 1} (
+                                                {new Date(log.timestamp).toLocaleTimeString([], {
+                                                    minute: '2-digit',
+                                                    second: '2-digit',
+                                                })}
+                                                )
                                             </div>
                                         </div>
-                                    )
+                                    );
                                 })}
                                 {/* Baseline */}
                                 <div className="absolute bottom-0 w-full h-px bg-slate-700"></div>
@@ -789,7 +968,10 @@ function WorkoutStatsModal({ session, onClose }) {
                 </div>
 
                 <div className="p-4 border-t border-slate-800 bg-slate-900/50 sticky bottom-0">
-                    <button onClick={onClose} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors">
+                    <button
+                        onClick={onClose}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors"
+                    >
                         Cerrar
                     </button>
                 </div>
