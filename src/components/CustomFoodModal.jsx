@@ -525,8 +525,8 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                     )}
                 </div>
 
-                {/* Footer fijo — pb-8 extra en mobile para que no lo tape el nav inferior */}
-                <footer className="p-5 pb-8 sm:pb-5 border-t border-slate-800 bg-slate-900/95 space-y-3">
+                {/* Footer fijo */}
+                <footer className="p-5 border-t border-slate-800 bg-slate-900/95 space-y-3">
                     {error && (
                         <div className="flex items-start gap-2 p-3 bg-rose-950/40 border border-rose-900 rounded-lg text-xs text-rose-300">
                             <AlertCircle size={14} className="shrink-0 mt-0.5" />

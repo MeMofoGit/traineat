@@ -13,7 +13,7 @@ export default function Layout() {
             </main>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 z-50">
+            <nav className="fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 z-40">
                 <div className="max-w-md mx-auto flex justify-around items-center p-4">
                     <NavItem to="/" icon={<Home size={24} />} label="Inicio" />
                     <NavItem to="/diet" icon={<Utensils size={24} />} label="Dieta" />
