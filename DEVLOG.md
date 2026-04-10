@@ -6,6 +6,64 @@ Bitácora de desarrollo. Lo más reciente arriba. Lee las últimas 3-5 entradas 
 
 ---
 
+## 2026-04-10 — Fase 3 completa (OCR vía Claude Haiku) + polish Fase 2 (retry + cost alerts docs)
+
+**Contexto**: sesión combinada — cerrar lo que quedaba abierto de Fase 2 (retry automático, budget alerts docs) y arrancar Fase 3 de cero (OCR con visión para que el usuario pueda hacer foto a la etiqueta cuando OFF no conoce el producto). Ambas cosas son parte del triple manual/barcode/foto que configura el core value del feature Mi Nevera.
+
+**Cambio**:
+
+*Polish Fase 2 — Retry automático (C2.9):*
+- `src/services/barcode.js` — `lookupBarcode(barcode, { maxRetries = 2 })` ahora reintenta errores transitorios con backoff lineal 800ms·n. Solo reintenta `OFF_UNAVAILABLE`, `functions/unavailable`, `deadline-exceeded` e `internal` — no reintenta `NOT_FOUND` ni `INVALID` (no tiene sentido, mismo input fallaría igual). El retry es transparente: la UI sigue mostrando "Buscando…" durante los reintentos sin distinguir entre intentos.
+
+*Polish Fase 2 — Budget alerts docs (C2.10):*
+- `PROJECT_PLAN.md` — C2.10 con pasos concretos para configurar budgets en Firebase (GCP Billing, 5€/mes) y Anthropic (console.anthropic.com → Settings → usage limit, 10$/mes). Son acciones del usuario, no código.
+
+*Fase 3 — Anthropic secret:*
+- `firebase functions:secrets:set ANTHROPIC_API_KEY` usando fichero temporal en `/tmp` borrado inmediatamente. Version 1 del secret creada en Google Secret Manager. Al desplegar `ocrLabel`, Firebase concedió automáticamente `roles/secretmanager.secretAccessor` al service account compute default.
+
+*Fase 3 — Backend `ocrLabel`:*
+- `functions/package.json` — nueva dep `@anthropic-ai/sdk` ^0.87.
+- `functions/src/lib/errors.ts` — añadidos códigos `OCR_NOT_A_LABEL`, `OCR_INCOMPLETE`, `OCR_API_ERROR`, `IMAGE_TOO_LARGE`, `IMAGE_INVALID`.
+- `functions/src/lib/rateLimit.ts` — **NUEVO**. Rate limiter en memoria per-instance con Map<key, {count, windowStart}>. `checkRateLimit(key, {max, windowMs})` devuelve `{allowed, remaining, retryAfterMs}`. Cleanup oportunista para no dejar crecer el Map. Best-effort: con `maxInstances: 10` el límite real es 10× el configurado, aceptable para MVP. TODO: endurecer con Firestore atomic counter cuando haya abuso.
+- `functions/src/services/anthropicOcr.ts` — **NUEVO**. Cliente de Claude Haiku 4.5 con visión. System prompt de ~60 líneas con schema JSON estricto, reglas de conversión (kJ→kcal, sodio×2.5→sal, coma decimal europea), instrucciones "never invent" y manejo de "isLabel: false". `extractNutritionFromImage(base64, mimeType)` → JSON → `MappedFood`. Parser JSON defensivo que busca `{...}` balanceado en el texto por si el modelo lo envuelve en markdown. Devuelve `{ food, confidence, notes }`.
+- `functions/src/services/openfoodfacts.ts` — `MappedFood.barcode` cambiado a opcional porque OCR puede no tenerlo.
+- `functions/src/api/ocrLabel.ts` — **NUEVO**. Handler callable (europe-west1, 512 MiB, 60s timeout, `secrets: [ANTHROPIC_API_KEY]`). Auth → rate limit (5/min, 50/día) → validación input (max 4 MB base64, mimeType en whitelist) → sanitize data URL prefix → `extractNutritionFromImage` → aplicar hintBarcode si viene → `validateFoodServerSide` → return. Errores mapeados a `HttpsError` con `details.code` estables.
+- `functions/src/index.ts` — re-exporta `ocrLabel`.
+
+*Fase 3 — Cliente:*
+- `src/services/ocr.js` — **NUEVO**. `preprocessImage(file)` usa `createImageBitmap({imageOrientation: 'from-image'})` + Canvas resize a max 1200px + `toBlob` JPEG 0.85 + `FileReader.readAsDataURL` → base64. Fallback sin EXIF si el browser no lo soporta. `ocrLabelFromBase64(base64, mimeType, hintBarcode?)` llama a `httpsCallable('ocrLabel')` y mapea errores a `OcrErrors` constant. Libera el bitmap con `.close()` tras usar.
+- `src/components/CustomFoodModal.jsx` — activado el botón "Foto" (antes disabled con "Próximamente"). Nuevo state `ocrLoading`, `fileInputRef`. `<input type="file" accept="image/*" capture="environment">` oculto disparado vía ref. `openPhotoPicker` → `handleFileSelected(file)` → preprocesa + llama a OCR + rellena form + notice según `confidence` (high → info cyan, medium/low → warn amber con los `notes` si vienen). En errores: NOT_A_LABEL/INCOMPLETE limpian el form (preservando barcode si había); RATE_LIMITED muestra tiempo de espera; API_ERROR mensaje genérico. `capture="environment"` en móvil abre cámara trasera directa; en desktop abre file picker.
+
+*Deploy:*
+- `npx firebase deploy --only functions:ocrLabel` → creación exitosa. `secretmanager.googleapis.com` habilitado automáticamente. `roles/secretmanager.secretAccessor` concedido al service account. `firebase functions:list` ahora muestra las dos: `lookupBarcode` (256 MiB) y `ocrLabel` (512 MiB), ambas en europe-west1.
+
+*Docs:*
+- `PROJECT_PLAN.md` — C2.9 y C2.10 actualizados/cerrados, Fase 3 con 6 sub-commits marcados ☑ (C3.0-C3.5), notas de coste estimado y deuda conocida (telemetría diferida, rate limit lax, imagen no guardada).
+
+**Por qué así**:
+
+- **Retry solo en errores transitorios**: el bug anterior donde `NOT_FOUND` se mostraba como "servicio caído" enseñó que distinguir terminales vs transitorios es crítico. El retry lineal (no exponencial) con solo 2 intentos cubre picos cortos de latencia OFF sin convertir un fallo duradero en una espera eterna.
+- **Rate limiter en memoria**: podría haberlo hecho con Firestore (atomic increment) pero añade 2 reads + 1 write por cada OCR (3 operations por request). Para MVP con 1 usuario es overkill; memoria es gratis, per-instance es suficiente. Cuando haya abuso real (no estimado nunca para una app personal), migrar.
+- **System prompt detallado en lugar de tool_use**: Anthropic soporta `tools` con JSON schema forzado, pero requiere más boilerplate y tokens extra. El prompt-based JSON con un parser defensivo es más simple y funciona bien con Haiku — este modelo ya es muy obediente con formatos JSON cuando el system prompt es explícito. Si en pruebas reales veo que falla, migro a tool_use.
+- **Preprocesado cliente**: subir una foto de móvil cruda (3-5 MB) a Claude es 3-5× más caro en tokens que la versión optimizada (~500 KB). `createImageBitmap` con `imageOrientation: 'from-image'` respeta EXIF sin librerías externas. Canvas resize es estándar y gratis. Elijo 1200px como compromiso entre legibilidad (etiquetas pequeñas) y tamaño final.
+- **`capture="environment"`** en el input file: sin esto, en móvil se abre el picker de archivos en lugar de la cámara directamente. Con esto, abre la cámara trasera de una y el usuario hace la foto sin pasos extra. En desktop el atributo lo ignora y abre file picker normal — mismo código funciona en ambos.
+- **Reutilizar el form del modal como pantalla de revisión**: en lugar de crear una pantalla aparte de "revisión post-OCR", rellena el mismo form con los datos extraídos. El usuario ya conoce esa UI de la entrada manual. Ahorra código, consistencia UX.
+- **Secret vía fichero temporal en /tmp**: el CLI `firebase functions:secrets:set` soporta `--data-file`. Usando `/tmp` (fuera del repo) + borrado inmediato, la key nunca queda en disco persistente ni en historial de shell. Mejor que pipe stdin porque era más predecible entre plataformas.
+- **`barcode` opcional en `MappedFood`**: OCR no siempre tiene barcode. En lugar de inicializar a `''` y hacer `delete` después (hacky), hago el tipo opcional y todo fluye natural.
+- **`secrets: [ANTHROPIC_KEY]` en la config del handler, no en el servicio**: mantiene el uso del secret explícito en el handler que lo necesita, y permite que otras Functions (que no necesiten Anthropic) tengan cold-starts más rápidos sin el secret montado.
+
+**Notas / deuda**:
+- ⏳ **Budget alerts** (C2.10): son acción del usuario, no código. Pasos en PROJECT_PLAN. Fuertemente recomendado hacer hoy o mañana antes de abrir a más usuarios.
+- ⏳ **Tests unitarios**: diferidos otra vez. El bug de Fase 2 sobre HTTP 404 se habría cazado con un test. La misma lógica aplica a `anthropicOcr.ts` (mock de la respuesta de Claude, verificar que parsea bien JSON wrapped en markdown, verificar que rechaza `isLabel: false`, etc.). Siguiente sesión si hay tiempo.
+- ⏳ **Telemetría C3.6**: diferida. Cuando haya un número razonable de escaneos reales, registrar qué campos el usuario edita post-OCR para iterar el prompt con datos. Requiere una colección `ocrFeedback` y un endpoint para reportar diffs — no prioritario.
+- ⏳ **Confidence per-field**: el prompt pide un `confidence` global. Resaltar campos individuales con baja confianza requeriría pedir `{protein: {value, confidence}, carbs: {value, confidence}, ...}` — más tokens, más complejidad del mapper. Pendiente de decidir si merece la pena.
+- ⚠ **Prompt no probado con fotos reales**: el prompt está inspirado en conocimiento general de etiquetas EU. Cuando Igor pruebe con fotos reales de productos, tal vez haga falta iterar (añadir ejemplos few-shot, ajustar reglas específicas). Los logs de Function + el notice que el modelo devuelve en `notes` darán señales.
+- ⚠ **Rate limit lax**: `maxInstances: 10` + limit en memoria = teóricamente un usuario puede hacer hasta 50/min y 500/día en el peor caso (si por casualidad cada request va a una instancia distinta). Suficiente para MVP. Endurecer si hay abuso.
+- ⚠ **API key sigue comprometida**: Igor aún no la ha rotado (confirmó "sigue con esa clave y ya la cambiaré"). Cuando la rote, ejecutar `firebase functions:secrets:set ANTHROPIC_API_KEY` de nuevo (crea version 2) y redesplegar `ocrLabel` (las Functions reciben la última versión automáticamente tras redeploy).
+- Próxima sesión probable: **Fase 4** (OFF mirror nocturno) o **F0** (tests + CI). Mi recomendación: F0 primero para bloquear regresiones en Functions, que es donde los bugs duelen más (deploy cycle + tokens gastados).
+
+---
+
 ## 2026-04-10 — Fix: form no se reseteaba entre escaneos + mensaje NOT_FOUND mejorado
 
 **Contexto**: Igor detectó dos cosas probando el barcode desde móvil. (1) Escaneo producto A → rellena form → escaneo producto B que no está en OFF → veo notice de NOT_FOUND pero los campos del producto A siguen ahí. (2) El mensaje de NOT_FOUND dice "rellena los campos a mano" como si fuese la opción principal, pero la opción natural debería ser "haz una foto" (OCR). Además, confusión arquitectónica: pensaba que ya había volcado diario de OFF cuando en realidad `productCache` es un cache perezoso que solo crece con escaneos reales.

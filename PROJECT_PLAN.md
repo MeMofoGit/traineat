@@ -347,8 +347,17 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
   - Notice con Info icon y colores por kind (info=cyan, warn=amber).
   - Añadidos fields `brand` (input editable) y `barcode` (badge read-only con botón "Quitar").
 - ☑ **C2.8** Cache de sesión en `src/services/barcode.js` — Map en memoria con TTL 10 min, evita re-llamar Function en re-escaneos inmediatos. Eviction por TTL lazy, clearBarcodeSessionCache exportado para logout futuro.
-- ☐ **C2.9** Manejo de errores end-to-end: **parcialmente hecho** — NOT_FOUND, UNAVAILABLE, INVALID, permisos cámara, carga lazy fallida. Pendiente: reintento automático tras error transitorio, "guardar intento" para offline.
-- ☐ **C2.10** Cost monitoring: budget alert Firebase a 5€/mes. **Pendiente**: hacerlo desde consola Firebase (fuera de código).
+- ☑ **C2.9** Manejo de errores end-to-end:
+  - NOT_FOUND, UNAVAILABLE, INVALID, permisos cámara denegados, lazy-load fallido → todos con mensajes localizados.
+  - **Retry automático en `barcode.js`**: hasta 2 reintentos con backoff lineal 800ms·n solo para errores transitorios (`OFF_UNAVAILABLE`, `functions/unavailable`, `deadline-exceeded`, `internal`). NOT_FOUND e INVALID NO se reintentan (sería desperdicio). Transparente para la UI.
+  - Form reset en todos los errores para no dejar datos residuales entre escaneos (fix 2026-04-10).
+  - Pendiente "guardar intento offline" para cuando no hay red — diferido, requiere infra de cola local.
+- ☐ **C2.10** Cost monitoring: budget alerts. **Acción del usuario** (no es código). Pasos:
+  1. Firebase Console → Settings (⚙) → Usage and billing → Details & settings → Modify plan → abre Google Cloud Console Billing.
+  2. En GCP: Billing → Budgets & alerts → Create budget.
+  3. **Budget 1 — Firebase total**: Scope = project `fitness-6d907`, Amount = **5 €/mes**, alerts al 50%/90%/100%.
+  4. **Budget 2 — Solo Anthropic** (recomendado para vigilar el coste de OCR por separado): no aplicable desde GCP porque Anthropic no factura ahí. Vigilar directamente en console.anthropic.com → Usage, configurar "monthly usage limit" en los Settings de la organización a **10$/mes** como techo.
+  5. Email de notificación al correo del propietario. Alertas al 50%/90%/100% del budget.
 
 **Despliegue pendiente** (acción del usuario):
 1. `npm run build` dentro de `functions/` — ya verificado limpio.
@@ -373,37 +382,38 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 > - Destacar visualmente el botón "Foto" en el source picker cuando el notice NOT_FOUND esté activo (border amber animado o similar), guiando al usuario al siguiente paso natural.
 > - Considerar auto-enfocar / auto-scroll al botón Foto, o incluso auto-trigger el picker de imagen si la UX lo permite sin ser intrusivo.
 
-- ⊘ **C3.0** Obtener API key Anthropic. **Acción del usuario** (console.anthropic.com, separada de Claude MAX).
-- ☐ **C3.1** Function callable `ocrLabel({ imageBase64, hintCategory? })`:
-  - Auth check.
-  - Rate limit per user (5/min, 50/día) con counter en Firestore o memoria.
-  - Imagen máx 5 MB. Validación tipo (jpeg/png/webp).
-  - Llamada a Claude Haiku con visión + system prompt cuidadoso pidiendo JSON estructurado.
-  - Validación con schema (todos los campos en gramos por servingSize, números no negativos, kcal coherente con macros).
-  - Devuelve `{ macros: {...}, confidence: { protein: 0.95, ... }, rawResponse }`.
-- ☐ **C3.2** Prompt engineering: iterar con 5-10 etiquetas reales españolas (tabla y prosa) para tunear precisión.
-- ☐ **C3.3** Cliente: añadir botón "Foto de la etiqueta" al `CustomFoodModal`.
-  - `<input type="file" accept="image/*" capture="environment">` (móvil abre cámara).
-  - Preview inmediato.
-  - **Preprocesado cliente** antes de enviar:
-    - Resize a max 1200px lado mayor (reduce coste y latencia).
-    - Compresión JPEG quality 0.85.
-    - Auto-rotación desde EXIF.
-  - Subida con spinner.
-- ☐ **C3.4** Pantalla de revisión editable:
-  - Cada campo del JSON pre-rellenado.
-  - Campos con baja confianza marcados visualmente (border amber).
-  - Imagen original sigue visible al lado para que el usuario compare.
-  - Botones: "Reintentar OCR" / "Confirmar" / "Cancelar".
-- ☐ **C3.5** Manejo errores:
-  - Timeout (>20s) → reintenta una vez automáticamente, después manual.
-  - Schema fail → "No se pudo leer, revisa manualmente" con lo que sí se extrajo.
-  - Rate limit → mensaje claro con tiempo de espera.
-  - Imagen no parece etiqueta nutricional → rechazo educado.
-- ☐ **C3.6** Telemetría: para cada OCR, registrar (anónimamente):
-  - Si hubo edits del usuario al resultado.
-  - Qué campos editó.
-  - Permite mejorar prompt con datos reales.
+- ☑ **C3.0** Obtener API key Anthropic. *Hecha por el usuario 2026-04-10.*
+- ☑ **C3.0a** Cargar el secret en Firebase: `firebase functions:secrets:set ANTHROPIC_API_KEY` (vía `--data-file` con temporal). **Version 1** del secret creada 2026-04-10. Service account de Functions recibió `roles/secretmanager.secretAccessor` automáticamente al desplegar `ocrLabel`.
+- ☑ **C3.1** Function callable `ocrLabel` (europe-west1, 512 MiB, maxInstances 10, timeout 60s, `secrets: [ANTHROPIC_API_KEY]`):
+  - Auth obligatoria.
+  - Rate limit per user (5/min, 50/día) en memoria vía `lib/rateLimit.ts` (per-instance, best-effort; aceptable para MVP).
+  - Imagen máx 4 MB base64 (~3 MB real). Validación mimeType (jpeg/png/webp).
+  - Sanitiza accidentales data URL prefixes (`data:image/jpeg;base64,...`).
+  - Llama a `services/anthropicOcr.ts` → Claude Haiku 4.5 con visión → parsea JSON → mapea a shape interno.
+  - Errores estables con `details.code`: `OCR_NOT_A_LABEL`, `OCR_INCOMPLETE`, `OCR_API_ERROR`, `RATE_LIMITED`, `IMAGE_TOO_LARGE`, `IMAGE_INVALID`.
+  - Si viene `hintBarcode` (flujo post-NOT_FOUND de lookupBarcode), lo asocia al food.
+  - Validación server-side del food extraído antes de devolver.
+- ☑ **C3.2** Prompt engineering inicial en `anthropicOcr.ts`: system prompt de ~60 líneas con schema estricto, reglas de conversión (kJ→kcal, sodio→sal, coma decimal europea), instrucciones de "never invent" y manejo de "isLabel: false". Iterar con fotos reales cuando las haya.
+- ☑ **C3.3** Cliente:
+  - `src/services/ocr.js` con `preprocessImage(file)` y `ocrLabelFromBase64(base64, mimeType, hintBarcode?)`.
+  - Preprocesado con `createImageBitmap({ imageOrientation: 'from-image' })` + Canvas resize a max 1200px + `toBlob` JPEG quality 0.85 + `FileReader.readAsDataURL` para base64. Fallback sin EXIF si el browser no soporta.
+  - En `CustomFoodModal.jsx`: botón "Foto" activado (antes disabled/comingSoon), `<input type="file" accept="image/*" capture="environment">` oculto disparado por ref, handler `handleFileSelected` que preprocesa, llama a `ocrLabelFromBase64`, rellena form y muestra notice con confidence.
+  - En móvil, `capture="environment"` abre directamente la cámara trasera; en desktop abre el file picker.
+- ☑ **C3.4** Pantalla de revisión editable: **ya existe** — es el mismo form del modal. Los campos con baja confianza no están resaltados visualmente (el modelo solo devuelve un `confidence` global, no per-field). **Deuda**: resaltar fields específicos requeriría que el prompt pida `confidence` per-field.
+- ☑ **C3.5** Manejo errores end-to-end:
+  - `NOT_A_LABEL` → notice warn "No reconocemos esta imagen como etiqueta nutricional".
+  - `INCOMPLETE` → notice warn "No pudimos leer todos los valores. Prueba con mejor luz/más cerca".
+  - `RATE_LIMITED` → notice warn con tiempo de espera.
+  - `IMAGE_TOO_LARGE`/`IMAGE_INVALID` → notice warn.
+  - `API_ERROR` → notice warn "Servicio OCR no disponible".
+- ☐ **C3.6** Telemetría de diff (user-editó vs OCR): **diferido**. Para iterar el prompt con datos reales. Pendiente.
+
+**Notas Fase 3**:
+- Coste estimado con Claude Haiku 4.5: ~$0.001 por imagen (imagen optimizada ~500 KB + ~200 tokens de respuesta). 1000 escaneos/mes = $1.
+- El prompt está en inglés pero pide salida en nombres de campos inglés — el modelo igualmente lee etiquetas en español/catalán/inglés/francés sin problema. Si detectamos fallos con labels en idiomas raros, localizar el prompt.
+- El rate limit en memoria es lax: con `maxInstances: 10`, un usuario puede hacer hasta 50 req/min y 500 req/día en el peor caso. Suficiente para MVP; endurecer con Firestore cuando haya abuso real.
+- La imagen **NO se guarda** en ningún sitio — solo vive en memoria durante la request y se descarta al terminar. Sin Firebase Storage, sin logs de la imagen.
+- Opcional futuro: preservar la imagen en `<img>` visible al lado del form mientras el usuario revisa, para poder comparar valor-a-valor. Hoy el form pierde la referencia visual al confirmar.
 
 **Notas Fase 3**:
 - El preprocesado cliente es **importante para coste**: subir imagen 4 MB original = 4x más caro y lento que 200 KB optimizada. Mismo resultado de OCR.

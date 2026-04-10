@@ -57,7 +57,7 @@ export interface MappedFood {
   defaultUnit: 'g' | 'ml' | 'pz';
   servingSize: number;
   source: 'custom';
-  barcode: string;
+  barcode?: string;       // opcional — solo presente si viene de barcode lookup o OCR con hint
   brand?: string;
   imageUrl?: string;
   macros: {

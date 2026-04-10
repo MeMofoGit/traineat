@@ -14,3 +14,4 @@ initializeApp();
 
 // --- API handlers ---
 export { lookupBarcode } from './api/lookupBarcode';
+export { ocrLabel } from './api/ocrLabel';

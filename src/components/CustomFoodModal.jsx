@@ -6,6 +6,7 @@ import {
 import { FOOD_CATEGORIES } from '../data/food_database';
 import { usePlan } from '../hooks/usePlan';
 import { lookupBarcode, BarcodeErrors } from '../services/barcode';
+import { preprocessImage, ocrLabelFromBase64, OcrErrors } from '../services/ocr';
 import BarcodeScanner from './BarcodeScanner';
 import { useEntitlements } from '../hooks/useEntitlements';
 
@@ -36,6 +37,10 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
     const [scannerOpen, setScannerOpen] = useState(false);
     const [lookupLoading, setLookupLoading] = useState(false);
     const [lookupNotice, setLookupNotice] = useState(null); // {kind: 'info'|'warn', text}
+
+    // OCR state
+    const [ocrLoading, setOcrLoading] = useState(false);
+    const fileInputRef = useRef(null);
 
     const firstInputRef = useRef(null);
 
@@ -120,6 +125,95 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
         } finally {
             setLookupLoading(false);
         }
+    }, []);
+
+    // --- OCR flow ---
+    const handleFileSelected = useCallback(async (file) => {
+        if (!file) return;
+        setError(null);
+        setLookupNotice(null);
+        setOcrLoading(true);
+
+        // Preservar el barcode si ya había uno (hint para el OCR).
+        const currentBarcode = form.barcode;
+
+        try {
+            // 1. Preprocesar imagen (resize + compress + base64)
+            const { base64, mimeType } = await preprocessImage(file);
+
+            // 2. Llamar a la Function
+            const { food, confidence, notes } = await ocrLabelFromBase64(
+                base64,
+                mimeType,
+                currentBarcode || undefined
+            );
+
+            // 3. Rellenar el form
+            setForm(foodToForm(food));
+            const m = food.macros || {};
+            if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
+                setShowOptional(true);
+            }
+
+            // 4. Notice según confianza
+            const confText = confidence === 'high'
+                ? 'Etiqueta leída con alta confianza. Revisa los datos y confirma.'
+                : confidence === 'medium'
+                    ? 'Etiqueta leída. Algunos valores pueden necesitar revisión.'
+                    : 'Lectura con baja confianza. Revisa cada campo antes de guardar.';
+            setLookupNotice({
+                kind: confidence === 'high' ? 'info' : 'warn',
+                text: notes ? `${confText} (${notes})` : confText,
+            });
+        } catch (err) {
+            // En todos los errores de OCR limpiamos campos (excepto barcode si lo había)
+            if (err?.code === OcrErrors.NOT_A_LABEL) {
+                setForm(currentBarcode
+                    ? { ...buildEmptyForm(), barcode: currentBarcode }
+                    : buildEmptyForm()
+                );
+                setShowOptional(false);
+                setLookupNotice({
+                    kind: 'warn',
+                    text: err.message,
+                });
+            } else if (err?.code === OcrErrors.INCOMPLETE) {
+                setForm(currentBarcode
+                    ? { ...buildEmptyForm(), barcode: currentBarcode }
+                    : buildEmptyForm()
+                );
+                setShowOptional(false);
+                setLookupNotice({
+                    kind: 'warn',
+                    text: err.message,
+                });
+            } else if (err?.code === OcrErrors.RATE_LIMITED) {
+                setLookupNotice({
+                    kind: 'warn',
+                    text: err.message,
+                });
+            } else if (err?.code === OcrErrors.IMAGE_TOO_LARGE || err?.code === OcrErrors.IMAGE_INVALID) {
+                setLookupNotice({
+                    kind: 'warn',
+                    text: err.message,
+                });
+            } else if (err?.code === OcrErrors.API_ERROR) {
+                setLookupNotice({
+                    kind: 'warn',
+                    text: err.message || 'Servicio OCR no disponible. Prueba en unos minutos.',
+                });
+            } else {
+                setError(err?.message || 'Error al procesar la imagen');
+            }
+        } finally {
+            setOcrLoading(false);
+            // Limpiar el input para permitir reintento del mismo fichero
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    }, [form.barcode]);
+
+    const openPhotoPicker = useCallback(() => {
+        fileInputRef.current?.click();
     }, []);
 
     // ESC para cerrar
@@ -214,34 +308,49 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
                     {/* Source picker: barcode / foto / manual (solo en modo create) */}
                     {mode === 'create' && (
-                        <div className="grid grid-cols-3 gap-2">
-                            <SourceButton
-                                icon={<Barcode size={18} />}
-                                label="Código"
-                                sublabel="Escanear"
-                                color="cyan"
-                                disabled={lookupLoading || !entitlements.barcodeScan}
-                                locked={!entitlements.barcodeScan}
-                                onClick={() => setScannerOpen(true)}
+                        <>
+                            <div className="grid grid-cols-3 gap-2">
+                                <SourceButton
+                                    icon={<Barcode size={18} />}
+                                    label="Código"
+                                    sublabel="Escanear"
+                                    color="cyan"
+                                    disabled={lookupLoading || ocrLoading || !entitlements.barcodeScan}
+                                    locked={!entitlements.barcodeScan}
+                                    onClick={() => setScannerOpen(true)}
+                                />
+                                <SourceButton
+                                    icon={<Camera size={18} />}
+                                    label="Foto"
+                                    sublabel="Etiqueta"
+                                    color="amber"
+                                    disabled={lookupLoading || ocrLoading || !entitlements.ocrLabel}
+                                    locked={!entitlements.ocrLabel}
+                                    onClick={openPhotoPicker}
+                                />
+                                <SourceButton
+                                    icon={<PenLine size={18} />}
+                                    label="Manual"
+                                    sublabel="Formulario"
+                                    color="blue"
+                                    active
+                                    disabled={lookupLoading || ocrLoading}
+                                    onClick={() => setLookupNotice(null)}
+                                />
+                            </div>
+                            {/* Input oculto para capturar imagen — activado vía fileInputRef */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleFileSelected(file);
+                                }}
                             />
-                            <SourceButton
-                                icon={<Camera size={18} />}
-                                label="Foto"
-                                sublabel="Próximamente"
-                                color="amber"
-                                disabled
-                                comingSoon
-                                onClick={() => { /* Fase 3 */ }}
-                            />
-                            <SourceButton
-                                icon={<PenLine size={18} />}
-                                label="Manual"
-                                sublabel="Formulario"
-                                color="blue"
-                                active
-                                onClick={() => setLookupNotice(null)}
-                            />
-                        </div>
+                        </>
                     )}
 
                     {/* Loading del lookup */}
@@ -249,6 +358,14 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                         <div className="flex items-center gap-3 p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-xs text-slate-300">
                             <Loader2 size={14} className="animate-spin text-cyan-400 shrink-0" />
                             <span>Buscando producto en OpenFoodFacts…</span>
+                        </div>
+                    )}
+
+                    {/* Loading del OCR */}
+                    {ocrLoading && (
+                        <div className="flex items-center gap-3 p-3 bg-amber-950/30 border border-amber-900/50 rounded-xl text-xs text-amber-200">
+                            <Loader2 size={14} className="animate-spin text-amber-400 shrink-0" />
+                            <span>Leyendo la etiqueta con IA… puede tardar unos segundos.</span>
                         </div>
                     )}
 
