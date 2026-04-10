@@ -520,25 +520,34 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 
 ---
 
-### Fase 5b — Smart Workout Suggestion (entrenos pendientes)
-*UX feature. No bloqueante, discreto. Resuelve el caso real de "no pude entrenar ayer, ¿qué hago hoy?".*
+### Fase 5b — Smart Workout Queue (cola inteligente de entrenos)
+*UX feature. Resuelve "no pude entrenar ayer" sin cascadas de avisos ni decisiones forzadas.*
 
-- ☐ **C5b-w.1** Detección de entrenos pendientes: comparar `plan.routines[phase][dayId]` (tiene ejercicios) contra `history` (no hay sesión completada ese día de la semana actual). Lógica en `useSchedule.js` o hook nuevo `usePendingWorkouts`.
-- ☐ **C5b-w.2** Banner "Smart Suggestion" en `Training.jsx`, encima del día activo:
-  - Solo aparece si hay día(s) pendiente(s) en la semana actual con ejercicios no completados.
-  - Muestra: icono ⚡ + nombre de la rutina pendiente + día original.
-  - 3 botones: **"Entrenar hoy"** (carga la rutina pendiente en el día actual para iniciar sesión), **"Saltar"** (descarta, marca como saltado), **"Ya lo hice"** (marca completado sin sesión).
-  - Máximo 1 banner (el pendiente más antiguo primero).
-  - NO reorganiza el calendario — el planning semanal original no se toca.
-  - No bloqueante — el usuario puede ignorarlo completamente y usar la app normal.
-- ☐ **C5b-w.3** Almacenamiento de decisiones en `plan.weeklyDecisions: { [dayId]: 'skipped' | 'done_elsewhere' }`. Reset automático cada lunes (o al cambiar de semana según ISO).
-- ☐ **C5b-w.4** Historial: cuando el usuario pulsa "Entrenar hoy" con una rutina de otro día, la sesión se registra en `history` con campo `originalDayId` para distinguir "hizo la rutina del lunes pero en martes".
+**Concepto**: la semana planificada es una **cola ordenada** de entrenamientos (excluyendo descansos). La app muestra siempre el **siguiente no completado** en la secuencia. Si faltas un día, el puntero no avanza — al día siguiente te muestra el mismo workout. Sin banners, sin preguntas, sin reorganizar el calendario. Zero cascada.
 
-**Notas Fase 5b-w**:
-- UX clave: NO es un modal, es un banner. Visible pero ignorable. No invade el flujo natural.
-- NO reorganiza la semana. El planning sigue siendo el original. Solo ofrece cargar la rutina pendiente en el día actual como sesión puntual.
-- El botón "Ya lo hice" cubre el caso de "entrené en otro gym sin la app" — importante para no penalizar al usuario con avisos eternos.
-- Prioridad: MEDIA. No bloquea publicación pero mejora mucho la experiencia de usuarios reales que faltan a un día.
+**Ejemplo**: Lun=Torso, Mar=Pierna, Jue=Torso2. El lunes no entrenas. El martes abres la app → muestra Torso con nota "Pendiente del Lunes". Entrenas, completas. La app avanza y muestra Pierna. Puedes hacerlo también (doble sesión) o dejarlo para mañana.
+
+- ☐ **C5b.1** Hook `useWorkoutQueue(phaseId, weekStart)`:
+  - Construye cola ordenada filtrando descansos.
+  - Determina `nextPendingIndex`: primer workout sin sesión completada en el historial de la semana ISO actual.
+  - Output: `{ queue, nextPending, completedCount, totalCount, markAsSkipped(dayId), markAsDoneElsewhere(dayId) }`.
+
+- ☐ **C5b.2** UI en `Training.jsx`:
+  - Al abrir, `activeDay` se auto-setea al día del `nextPending` en lugar de `new Date().getDay()`.
+  - Nota sutil bajo el título si es de otro día: `"Pendiente del Lunes"` (texto xs, slate-400).
+  - Las pestañas Lun-Dom siguen funcionales — tocar cualquiera muestra esa rutina. Auto-selección es solo el default.
+  - Al completar (`finishSession`), avanza automáticamente al siguiente pendiente.
+
+- ☐ **C5b.3** Acciones de bypass (discretas, no invasivas):
+  - **"Saltar"**: avanza la cola sin registrar sesión. Rutina saltada no vuelve a aparecer esa semana.
+  - **"Ya lo hice fuera"**: marca completada sin datos de sesión (entrenó en otro gym).
+  - Almacenamiento: `plan.weeklySkips: { [weekISO]: { [dayId]: 'skipped' | 'done_elsewhere' } }`.
+
+- ☐ **C5b.4** Historial: sesión completada con workout de otro día incluye `originalDayId` para estadísticas precisas ("4/5 entrenos esta semana").
+
+- ☐ **C5b.5** Reset semanal automático cada lunes (ISO week).
+
+**Por qué NO cascada**: no hay banners que generen nuevos pendientes. La cola avanza SOLO cuando el usuario actúa (completa, salta, marca). Si no hace nada, el puntero se queda quieto. El calendario original nunca se modifica.
 
 ---
 
