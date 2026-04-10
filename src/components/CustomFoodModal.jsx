@@ -232,26 +232,15 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
         return () => window.removeEventListener('keydown', handleKey);
     }, [isOpen, form]);
 
-    // BUG-4 FIX: botón "atrás" del navegador cierra el modal en lugar de la página.
-    const historyPushedRef = useRef(false);
+    // Botón "atrás" del navegador cierra el modal.
+    // Solo pushState + popstate listener, sin history.back() en cleanup
+    // (el back() causaba que React Router navegara a la página anterior).
     useEffect(() => {
-        if (isOpen) {
-            window.history.pushState({ modal: 'customFood' }, '');
-            historyPushedRef.current = true;
-            const handlePop = () => {
-                historyPushedRef.current = false;
-                onClose();
-            };
-            window.addEventListener('popstate', handlePop);
-            return () => {
-                window.removeEventListener('popstate', handlePop);
-                // Si el modal se cierra normalmente (no por popstate), limpiar el state
-                if (historyPushedRef.current) {
-                    historyPushedRef.current = false;
-                    window.history.back();
-                }
-            };
-        }
+        if (!isOpen) return;
+        window.history.pushState({ modal: 'customFood' }, '');
+        const handlePop = () => onClose();
+        window.addEventListener('popstate', handlePop);
+        return () => window.removeEventListener('popstate', handlePop);
     }, [isOpen, onClose]);
 
     if (!isOpen) return null;
@@ -536,8 +525,8 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                     )}
                 </div>
 
-                {/* Footer fijo */}
-                <footer className="p-5 border-t border-slate-800 bg-slate-900/95 space-y-3">
+                {/* Footer fijo — pb-8 extra en mobile para que no lo tape el nav inferior */}
+                <footer className="p-5 pb-8 sm:pb-5 border-t border-slate-800 bg-slate-900/95 space-y-3">
                     {error && (
                         <div className="flex items-start gap-2 p-3 bg-rose-950/40 border border-rose-900 rounded-lg text-xs text-rose-300">
                             <AlertCircle size={14} className="shrink-0 mt-0.5" />
