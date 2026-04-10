@@ -452,8 +452,13 @@ function WeeklyProgress({ plan }) {
 
     const pct = Math.round((completed / total) * 100);
 
+    const navigate = useNavigate();
+
     return (
-        <section className="bg-slate-800/30 rounded-3xl p-5 border border-slate-800">
+        <section
+            className="bg-slate-800/30 rounded-3xl p-5 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors"
+            onClick={() => navigate('/training')}
+        >
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-slate-300">
                     <TrendingUp size={16} />
@@ -472,12 +477,19 @@ function WeeklyProgress({ plan }) {
                 />
             </div>
 
-            {/* Day dots */}
+            {/* Day dots — click en cada día navega a Training con ese día */}
             <div className="flex justify-between">
                 {days.map((d) => (
-                    <div key={d.dayId} className="flex flex-col items-center gap-1.5">
+                    <div
+                        key={d.dayId}
+                        className="flex flex-col items-center gap-1.5 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/training', { state: { dayId: d.dayId } });
+                        }}
+                    >
                         <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all hover:scale-110 ${
                                 d.isCompleted
                                     ? 'bg-emerald-600 text-white'
                                     : d.isToday
@@ -485,7 +497,7 @@ function WeeklyProgress({ plan }) {
                                       : d.isSkipped
                                         ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
                                         : d.hasExercises
-                                          ? 'bg-slate-800 text-slate-500 border border-slate-700'
+                                          ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:border-slate-500'
                                           : 'bg-slate-900 text-slate-600'
                             }`}
                         >

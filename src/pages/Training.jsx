@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { usePlan } from '../hooks/usePlan';
 import { usePendingWorkouts } from '../hooks/usePendingWorkouts';
 import { EXERCISE_TEMPLATES } from '../data/templates';
@@ -60,9 +61,14 @@ export default function Training() {
     } = usePlan();
 
     const { firstPending, hasPending, markSkipped, markDoneElsewhere } = usePendingWorkouts();
+    const location = useLocation();
 
     const activePhaseId = plan.activePhaseId || plan.phases[0]?.id || 1;
-    const [activeDay, setActiveDay] = useState(new Date().getDay());
+    // Si se navega desde Dashboard con un día específico, usarlo como inicial
+    const [activeDay, setActiveDay] = useState(() => {
+        const navDayId = location.state?.dayId;
+        return typeof navDayId === 'number' ? navDayId : new Date().getDay();
+    });
     const [editingHeader, setEditingHeader] = useState(false);
     const [editingDayInfo, setEditingDayInfo] = useState(false);
     const [showStats, setShowStats] = useState(false); // Stats Modal State
