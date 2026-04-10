@@ -40,6 +40,9 @@ interface OffProduct {
   };
   serving_size?: string;
   image_front_small_url?: string;
+  nutriscore_grade?: string;
+  ecoscore_grade?: string;
+  nova_group?: number;
 }
 
 interface OffResponse {
@@ -57,9 +60,12 @@ export interface MappedFood {
   defaultUnit: 'g' | 'ml' | 'pz';
   servingSize: number;
   source: 'custom';
-  barcode?: string;       // opcional — solo presente si viene de barcode lookup o OCR con hint
+  barcode?: string;
   brand?: string;
   imageUrl?: string;
+  nutriscoreGrade?: string;   // 'a' | 'b' | 'c' | 'd' | 'e' — Nutri-Score
+  ecoscore?: string;          // 'a' | 'b' | 'c' | 'd' | 'e' — Eco-Score
+  novaGroup?: number;         // 1-4 — NOVA classification
   macros: {
     calories: number;
     protein: number;
@@ -95,6 +101,9 @@ export async function fetchFromOpenFoodFacts(barcode: string): Promise<MappedFoo
     'nutriments',
     'serving_size',
     'image_front_small_url',
+    'nutriscore_grade',
+    'ecoscore_grade',
+    'nova_group',
   ].join(',');
 
   const url = `${OFF_API_BASE}/${encodeURIComponent(barcode)}.json?fields=${fields}`;
@@ -186,6 +195,13 @@ export function mapOffProduct(p: OffProduct, barcode: string): MappedFood | null
     if (firstBrand) food.brand = firstBrand.slice(0, 100);
   }
   if (p.image_front_small_url) food.imageUrl = p.image_front_small_url;
+
+  // Scores nutricionales / ambientales
+  if (p.nutriscore_grade) food.nutriscoreGrade = p.nutriscore_grade.toLowerCase();
+  if (p.ecoscore_grade) food.ecoscore = p.ecoscore_grade.toLowerCase();
+  if (typeof p.nova_group === 'number' && p.nova_group >= 1 && p.nova_group <= 4) {
+    food.novaGroup = p.nova_group;
+  }
 
   // Macros opcionales — incluir solo si OFF los trae y son válidos
   if (typeof n['sugars_100g'] === 'number' && n['sugars_100g'] >= 0) {

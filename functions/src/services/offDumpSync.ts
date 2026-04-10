@@ -124,6 +124,9 @@ interface RawDumpProduct {
     };
   };
   nutriscore_grade?: string;
+  ecoscore_grade?: string;
+  environmental_score_grade?: string;
+  nova_group?: number;
   image_front_small_url?: string;
 }
 
@@ -349,6 +352,19 @@ function mapDumpProduct(p: RawDumpProduct, barcode: string): MappedFood | null {
   if (typeof fiber === 'number' && fiber >= 0) food.macros.fiber = round2(fiber);
   if (typeof saturated === 'number' && saturated >= 0) food.macros.saturated = round2(saturated);
   if (typeof salt === 'number' && salt >= 0) food.macros.salt = round2(salt);
+
+  // Scores nutricionales / ambientales — disponibles en ~100% de productos del dump
+  if (p.nutriscore_grade && typeof p.nutriscore_grade === 'string') {
+    food.nutriscoreGrade = p.nutriscore_grade.toLowerCase();
+  }
+  const ecoGrade = p.ecoscore_grade || p.environmental_score_grade;
+  if (ecoGrade && typeof ecoGrade === 'string') {
+    food.ecoscore = ecoGrade.toLowerCase();
+  }
+  const nova = getDumpNutrientValue(p, 'nova-group');
+  if (typeof nova === 'number' && nova >= 1 && nova <= 4) {
+    food.novaGroup = nova;
+  }
 
   return food;
 }
