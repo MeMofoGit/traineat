@@ -520,20 +520,42 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 
 ---
 
-### Fase 5b — Nutrient Timing (hora de entreno → redistribución de comidas)
+### Fase 5b — Smart Workout Suggestion (entrenos pendientes)
+*UX feature. No bloqueante, discreto. Resuelve el caso real de "no pude entrenar ayer, ¿qué hago hoy?".*
+
+- ☐ **C5b-w.1** Detección de entrenos pendientes: comparar `plan.routines[phase][dayId]` (tiene ejercicios) contra `history` (no hay sesión completada ese día de la semana actual). Lógica en `useSchedule.js` o hook nuevo `usePendingWorkouts`.
+- ☐ **C5b-w.2** Banner "Smart Suggestion" en `Training.jsx`, encima del día activo:
+  - Solo aparece si hay día(s) pendiente(s) en la semana actual con ejercicios no completados.
+  - Muestra: icono ⚡ + nombre de la rutina pendiente + día original.
+  - 3 botones: **"Entrenar hoy"** (carga la rutina pendiente en el día actual para iniciar sesión), **"Saltar"** (descarta, marca como saltado), **"Ya lo hice"** (marca completado sin sesión).
+  - Máximo 1 banner (el pendiente más antiguo primero).
+  - NO reorganiza el calendario — el planning semanal original no se toca.
+  - No bloqueante — el usuario puede ignorarlo completamente y usar la app normal.
+- ☐ **C5b-w.3** Almacenamiento de decisiones en `plan.weeklyDecisions: { [dayId]: 'skipped' | 'done_elsewhere' }`. Reset automático cada lunes (o al cambiar de semana según ISO).
+- ☐ **C5b-w.4** Historial: cuando el usuario pulsa "Entrenar hoy" con una rutina de otro día, la sesión se registra en `history` con campo `originalDayId` para distinguir "hizo la rutina del lunes pero en martes".
+
+**Notas Fase 5b-w**:
+- UX clave: NO es un modal, es un banner. Visible pero ignorable. No invade el flujo natural.
+- NO reorganiza la semana. El planning sigue siendo el original. Solo ofrece cargar la rutina pendiente en el día actual como sesión puntual.
+- El botón "Ya lo hice" cubre el caso de "entrené en otro gym sin la app" — importante para no penalizar al usuario con avisos eternos.
+- Prioridad: MEDIA. No bloquea publicación pero mejora mucho la experiencia de usuarios reales que faltan a un día.
+
+---
+
+### Fase 5c — Nutrient Timing (hora de entreno → redistribución de comidas)
 *Feature inteligente que diferencia de apps genéricas. Depende de Fase 5a (targets de macros).*
 
-- ☐ **C5b.1** Nuevo campo `plan.trainingTime`: hora del entreno (editable globalmente desde Dashboard o Diet, opcionalmente override por día de la semana).
-- ☐ **C5b.2** Lógica de nutrient timing en `useSchedule.js` o hook nuevo `useNutrientTiming`:
+- ☐ **C5c.1** Nuevo campo `plan.trainingTime`: hora del entreno (editable globalmente desde Dashboard o Diet, opcionalmente override por día de la semana).
+- ☐ **C5c.2** Lógica de nutrient timing en `useSchedule.js` o hook nuevo `useNutrientTiming`:
   - Dado `trainingTime` + `activePhaseId` (que determina goalType: volumen/definición/recomp/mantenimiento):
     - **Volumen**: concentrar 60% de carbos en comida pre-entreno + comida post-entreno.
     - **Definición**: carbos SOLO post-entreno. Pre-entreno: proteínas + grasas. Resto del día: zero/low carb.
     - **Recomp**: distribución equilibrada con pico moderado post-entreno (~40% carbos post).
     - **Mantenimiento**: distribución uniforme, sin timing especial.
   - Output: `schedule` dinámico con labels tipo "Pre-Entreno (alto en carbos)" y distribución de macros sugerida por comida.
-- ☐ **C5b.3** UI: selector de hora de entreno (time picker) en Dashboard o cabecera de Diet. Toggle "timing automático" on/off.
-- ☐ **C5b.4** Integración con el sugeridor de Fase 5a: las cantidades sugeridas respetan el timing (ej: si pre-entreno debe tener 40g carbos, el sugeridor ajusta la cantidad de arroz para cuadrar).
-- ☐ **C5b.5** Feedback visual en Diet: cada comida muestra un badge con el rol nutricional ("Pre-Entreno", "Ventana Anabólica", "Recuperación", "Low Carb") basado en su posición relativa al entreno.
+- ☐ **C5c.3** UI: selector de hora de entreno (time picker) en Dashboard o cabecera de Diet. Toggle "timing automático" on/off.
+- ☐ **C5c.4** Integración con el sugeridor de Fase 5a: las cantidades sugeridas respetan el timing (ej: si pre-entreno debe tener 40g carbos, el sugeridor ajusta la cantidad de arroz para cuadrar).
+- ☐ **C5c.5** Feedback visual en Diet: cada comida muestra un badge con el rol nutricional ("Pre-Entreno", "Ventana Anabólica", "Recuperación", "Low Carb") basado en su posición relativa al entreno.
 
 **Notas Fase 5b**:
 - Esta feature es DIFERENCIADORA. La mayoría de apps de nutrición no conectan el timing de macros con la hora del entrenamiento. Es valor real para usuarios fitness serios.
