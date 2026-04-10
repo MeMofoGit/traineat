@@ -43,11 +43,11 @@ export default function Fridge() {
     const filtered = useMemo(() => {
         let list = customFoods || [];
         if (categoryFilter) {
-            list = list.filter(f => f.category === categoryFilter);
+            list = list.filter((f) => f.category === categoryFilter);
         }
         if (search.trim()) {
             const q = search.trim().toLowerCase();
-            list = list.filter(f => (f.name || '').toLowerCase().includes(q));
+            list = list.filter((f) => (f.name || '').toLowerCase().includes(q));
         }
         if (sortMode === 'recent') {
             list = [...list].sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
@@ -101,8 +101,8 @@ export default function Fridge() {
                             : `${total} producto${total === 1 ? '' : 's'} guardado${total === 1 ? '' : 's'}`}
                     </p>
                 </div>
-                {total > 0 && (
-                    canCreate ? (
+                {total > 0 &&
+                    (canCreate ? (
                         <button
                             onClick={openCreate}
                             className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0"
@@ -119,8 +119,7 @@ export default function Fridge() {
                             <Lock size={12} />
                             Premium
                         </button>
-                    )
-                )}
+                    ))}
             </header>
 
             {/* Empty state ocupa toda la página */}
@@ -135,7 +134,7 @@ export default function Fridge() {
                             <input
                                 type="text"
                                 value={search}
-                                onChange={e => setSearch(e.target.value)}
+                                onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Buscar producto…"
                                 className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-3 py-3 text-sm text-white outline-none focus:border-cyan-500"
                             />
@@ -147,21 +146,23 @@ export default function Fridge() {
                                 onClick={() => setCategoryFilter(null)}
                                 label="Todas"
                             />
-                            {Object.values(FOOD_CATEGORIES).map(cat => (
+                            {Object.values(FOOD_CATEGORIES).map((cat) => (
                                 <CategoryChip
                                     key={cat.id}
                                     active={categoryFilter === cat.id}
-                                    onClick={() => setCategoryFilter(prev => prev === cat.id ? null : cat.id)}
+                                    onClick={() => setCategoryFilter((prev) => (prev === cat.id ? null : cat.id))}
                                     label={`${cat.icon} ${cat.label}`}
                                 />
                             ))}
                         </div>
 
                         <div className="flex justify-between items-center text-[11px] text-slate-500 px-1">
-                            <span>{filtered.length} resultado{filtered.length === 1 ? '' : 's'}</span>
+                            <span>
+                                {filtered.length} resultado{filtered.length === 1 ? '' : 's'}
+                            </span>
                             <select
                                 value={sortMode}
-                                onChange={e => setSortMode(e.target.value)}
+                                onChange={(e) => setSortMode(e.target.value)}
                                 className="bg-transparent text-slate-400 outline-none cursor-pointer"
                             >
                                 <option value="name">Alfabético</option>
@@ -172,12 +173,10 @@ export default function Fridge() {
 
                     {/* Lista */}
                     {filtered.length === 0 ? (
-                        <div className="text-center text-sm text-slate-500 py-10">
-                            Sin resultados con esos filtros
-                        </div>
+                        <div className="text-center text-sm text-slate-500 py-10">Sin resultados con esos filtros</div>
                     ) : (
                         <ul className="space-y-2">
-                            {filtered.map(food => (
+                            {filtered.map((food) => (
                                 <FoodCard
                                     key={food.id}
                                     food={food}
@@ -200,7 +199,9 @@ export default function Fridge() {
                 mode={editingFood ? 'edit' : 'create'}
                 initialFood={editingFood}
                 onSaved={(food) => {
-                    toast.success(editingFood ? 'Producto actualizado' : `${food?.name || 'Producto'} añadido a Mi Nevera`);
+                    toast.success(
+                        editingFood ? 'Producto actualizado' : `${food?.name || 'Producto'} añadido a Mi Nevera`
+                    );
                 }}
             />
 
@@ -216,8 +217,8 @@ export default function Fridge() {
                     className="underline hover:text-slate-400"
                 >
                     Open Food Facts
-                </a>
-                {' '}contributors, disponible bajo{' '}
+                </a>{' '}
+                contributors, disponible bajo{' '}
                 <a
                     href="https://opendatacommons.org/licenses/odbl/1-0/"
                     target="_blank"
@@ -244,9 +245,8 @@ function EmptyState({ onCreate, canCreate }) {
             </div>
             <h2 className="text-lg font-bold text-white mb-2">Tu nevera está vacía</h2>
             <p className="text-sm text-slate-400 mb-6 max-w-sm mx-auto">
-                Añade los productos que tienes en casa con sus valores nutricionales reales para
-                que tu plan sea preciso. Más adelante podrás también escanearlos por código de barras
-                o foto de la etiqueta.
+                Añade los productos que tienes en casa con sus valores nutricionales reales para que tu plan sea
+                preciso. Más adelante podrás también escanearlos por código de barras o foto de la etiqueta.
             </p>
             {canCreate ? (
                 <button
@@ -274,9 +274,7 @@ function CategoryChip({ active, onClick, label }) {
         <button
             onClick={onClick}
             className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
-                active
-                    ? 'bg-cyan-600 text-white'
-                    : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+                active ? 'bg-cyan-600 text-white' : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
             }`}
         >
             {label}
@@ -285,7 +283,7 @@ function CategoryChip({ active, onClick, label }) {
 }
 
 function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCancelDelete }) {
-    const cat = Object.values(FOOD_CATEGORIES).find(c => c.id === food.category) || FOOD_CATEGORIES.OTHER;
+    const cat = Object.values(FOOD_CATEGORIES).find((c) => c.id === food.category) || FOOD_CATEGORIES.OTHER;
     const m = food.macros || {};
     const serving = food.servingSize || (food.defaultUnit === 'g' || food.defaultUnit === 'ml' ? 100 : 1);
 
@@ -295,7 +293,8 @@ function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCa
                 <div className="flex items-start gap-2 text-sm text-rose-200">
                     <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                     <span>
-                        ¿Borrar <strong>{food.name}</strong>? Las comidas que lo usen mostrarán macros vacíos hasta que lo edites.
+                        ¿Borrar <strong>{food.name}</strong>? Las comidas que lo usen mostrarán macros vacíos hasta que
+                        lo edites.
                     </span>
                 </div>
                 <div className="flex gap-2">
@@ -328,8 +327,18 @@ function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCa
                 </div>
                 <div className="text-[11px] text-slate-400 font-mono mt-1">
                     P {Math.round(m.protein || 0)}g · C {Math.round(m.carbs || 0)}g · G {Math.round(m.fat || 0)}g
-                    <span className="text-slate-600"> · por {serving}{food.defaultUnit}</span>
+                    <span className="text-slate-600">
+                        {' '}
+                        · por {serving}
+                        {food.defaultUnit}
+                    </span>
                 </div>
+                {(food.nutriscoreGrade || food.novaGroup) && (
+                    <div className="flex gap-1.5 mt-1.5">
+                        {food.nutriscoreGrade && <NutriscoreBadge grade={food.nutriscoreGrade} />}
+                        {food.novaGroup && <NovaBadge group={food.novaGroup} />}
+                    </div>
+                )}
             </div>
             <div className="flex flex-col gap-1 shrink-0">
                 <button
@@ -348,5 +357,41 @@ function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCa
                 </button>
             </div>
         </li>
+    );
+}
+
+const NUTRISCORE_COLORS = {
+    a: 'bg-green-600 text-white',
+    b: 'bg-lime-500 text-white',
+    c: 'bg-yellow-400 text-black',
+    d: 'bg-orange-500 text-white',
+    e: 'bg-red-600 text-white',
+};
+
+function NutriscoreBadge({ grade }) {
+    const g = (grade || '').toLowerCase();
+    return (
+        <span
+            className={`text-[9px] font-black px-1.5 py-0.5 rounded ${NUTRISCORE_COLORS[g] || 'bg-slate-700 text-slate-300'}`}
+        >
+            Nutri {g.toUpperCase()}
+        </span>
+    );
+}
+
+const NOVA_COLORS = {
+    1: 'bg-green-700 text-white',
+    2: 'bg-yellow-600 text-white',
+    3: 'bg-orange-600 text-white',
+    4: 'bg-red-700 text-white',
+};
+
+function NovaBadge({ group }) {
+    return (
+        <span
+            className={`text-[9px] font-black px-1.5 py-0.5 rounded ${NOVA_COLORS[group] || 'bg-slate-700 text-slate-300'}`}
+        >
+            NOVA {group}
+        </span>
     );
 }
