@@ -197,6 +197,31 @@ export default function Fridge() {
                 mode={editingFood ? 'edit' : 'create'}
                 initialFood={editingFood}
             />
+
+            {/* Atribución ODbL — requerido por la licencia de OpenFoodFacts.
+                Los productos importados (mirror nocturno + cache) provienen de
+                ahí y debemos dar atribución visible. */}
+            <footer className="pt-4 text-center text-[10px] text-slate-600 leading-relaxed">
+                Información de productos por{' '}
+                <a
+                    href="https://es.openfoodfacts.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-slate-400"
+                >
+                    Open Food Facts
+                </a>
+                {' '}contributors, disponible bajo{' '}
+                <a
+                    href="https://opendatacommons.org/licenses/odbl/1-0/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-slate-400"
+                >
+                    Open Database License (ODbL)
+                </a>
+                .
+            </footer>
         </div>
     );
 }

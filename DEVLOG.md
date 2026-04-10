@@ -6,6 +6,60 @@ Bitácora de desarrollo. Lo más reciente arriba. Lee las últimas 3-5 entradas 
 
 ---
 
+## 2026-04-10 — Fase 4: OFF mirror nocturno (nightlyOFFSync + lookupBarcode encadenado)
+
+**Contexto**: Fase 4 del roadmap. Pre-cachear productos españoles del dump completo de OpenFoodFacts en una colección Firestore propia (`offProducts/{barcode}`) para que `lookupBarcode` no tenga que tocar el API live de OFF en cada producto nuevo. Mejora latencia (instant hit en mirror vs round-trip de 300-800ms al API), independencia (si OFF cae, los populares siguen funcionando), y permite expansión geográfica controlada en el futuro.
+
+**Cambio**:
+
+*Backend nuevo:*
+- `functions/src/services/offDumpSync.ts` — **NUEVO**. Streaming sync end-to-end: `fetch` → `Readable.fromWeb` (Web→Node stream) → `createGunzip` → `readline.createInterface` → loop con `JSON.parse` defensivo. Filtros en `shouldKeepProduct(p)`: país (`en:spain`/`en:españa` case-insensitive), nombre presente, 4 macros obligatorios (kcal/protein/carbs/fat) numéricos y >= 0. Map a shape interno reutilizando `mapOffProduct` del servicio existente. Upserts en `db.batch()` de 500 docs con `flushBatch()` cuando se llena, al final, y al hit de `maxItems` opcional. Estado persistido en `_meta/offSync` con startedAt/finishedAt/durationMs/status/contadores/errors[]. Soporta `dryRun` para validar sin escribir. SyncStatus es 'running'|'success'|'failed'.
+- `functions/src/api/nightlyOFFSync.ts` — **NUEVO**. Dos exports:
+  - `nightlyOFFSync` (scheduled, cron `0 3 * * *` Madrid, europe-west1, 2 GiB, **timeout 1800s**, maxInstances 1, retryCount 0). Llama directo a `runOffSync()`.
+  - `triggerOffSync` (callable, mismo memory/timeout). Auth required. Allowlist `ADMIN_UIDS = Set(['l4mauQrot6X8BrNdOQxwKQiHxXe2'])` con el uid anónimo de Igor. Acepta `{ maxItems?, dryRun? }` para validación inicial con dataset reducido. Migrar a custom claims `request.auth.token.admin` en F6.
+- `functions/src/index.ts` — re-exporta ambas.
+- `functions/src/api/lookupBarcode.ts` — actualizado con cadena de búsqueda en 3 pasos: (1) `offProducts/{barcode}` mirror, (2) `productCache/{barcode}` cache perezoso, (3) API OFF live. `LookupBarcodeResponse.source` ahora `'mirror' | 'cache' | 'off_api'`. El `syncedAt` interno del mirror se borra antes de devolver al cliente para no exponer detalles internos.
+- `functions/src/services/offDumpSync.test.ts` — **NUEVO**. 21 tests sobre `shouldKeepProduct` cubriendo: filtros país (en:spain, en:españa, multi-país, case insensitive, sin tags, vacíos), filtros nombre (presente en cada idioma individualmente, todos vacíos), filtros nutriments (mandatorios completos, missing, negativo, string-not-number, edge case macros=0). Total tests del proyecto: **76 → 97**.
+
+*Cliente:*
+- `src/pages/Fridge.jsx` — añadido footer al final con atribución ODbL: "Información de productos por Open Food Facts contributors, disponible bajo Open Database License (ODbL)" con links externos a openfoodfacts.org y opendatacommons.org. Requerido por la licencia para todo lo que use datos de OFF (mirror + cache + API live). Texto pequeño en slate-600, no intrusivo.
+
+*Deploy:*
+- 1er intento de deploy: **falló** por timeout. Tenía `timeoutSeconds: 3600` y el límite real de Gen 2 background functions (Pub/Sub/Schedule trigger) es 1800. Solo HTTP/callable pueden hasta 3600. Bajado a 1800 y redeployado.
+- 2º deploy exitoso: `nightlyOFFSync(europe-west1)` y `triggerOffSync(europe-west1)` creadas, `lookupBarcode` y `ocrLabel` actualizadas. Cloud Scheduler creado automáticamente (job `firebase-schedule-nightlyOFFSync-europe-west1`). API `cloudscheduler.googleapis.com` habilitada en el deploy.
+- Los 4 functions verificados con `firebase functions:list`: lookupBarcode (256 MiB callable), ocrLabel (512 MiB callable), nightlyOFFSync (2048 MiB scheduled), triggerOffSync (2048 MiB callable).
+- Logs verificados: ambas nuevas functions arrancaron con `Default STARTUP TCP probe succeeded` y revisión activa.
+
+**Por qué así**:
+
+- **Reusar `mapOffProduct` del servicio existente** en lugar de duplicar mapper para el dump: el JSON del dump tiene el mismo shape que el `product` field de la API REST. Single source of truth para "cómo mapeamos un producto OFF a nuestro shape".
+- **Streaming end-to-end con `Readable.fromWeb`**: Node 22 lo soporta nativamente desde 17. Convierte el ReadableStream Web (que devuelve `fetch`) a un Node Readable que se puede `pipe()` a `createGunzip()`. Sin esto tendría que descargar todo el .gz a un buffer (hasta 3 GB en RAM) — inviable.
+- **`shouldKeepProduct` como función pura exportada**: facilita los tests sin necesidad de mockear streams o I/O. La lógica de filtrado es la parte más crítica del sync (decide qué entra al mirror) y merece tests exhaustivos.
+- **`db.batch()` de 500**: límite Firestore. Más pequeño = más latencia per item. Más grande = falla. 500 es el sweet spot documentado.
+- **Idempotencia + sin cursor de resume**: el dump es full snapshot canonical. Reprocesarlo es seguro. Implementar cursor de resume añadiría complejidad para un caso (timeout) que no debería ocurrir en práctica con 30 min de timeout y filtrado España. Si pasa, paginamos.
+- **Estado en `_meta/offSync` doc**: separado de la lógica de la function para que (a) cualquier monitoring externo pueda leerlo, (b) sea inspeccionable a mano desde Firestore Console.
+- **`triggerOffSync` con allowlist hardcoded**: no quiero exponer un endpoint que cualquiera pueda llamar para gastar tiempo de Function. La allowlist es horrenda pero suficiente hasta F6 (custom claims). El uid de Igor lo saqué de los logs de las llamadas anteriores a `lookupBarcode`.
+- **`dryRun` flag**: para validar el filtro y parser sin escribir nada a Firestore. Útil para iterar sobre la lógica de filtrado sin ensuciar la DB.
+- **Cron 03:00 Madrid**: noche en España (sin tráfico de usuarios), suele coincidir con la ventana en la que OFF tiene el dump regenerado del día.
+- **`retryCount: 0`**: si el sync falla, NO auto-reintentar. Reintentar puede duplicar coste si el fallo es transitorio (red de fetch falla a mitad → cargar 3 GB de nuevo). Mejor diagnosticar y arreglar; al día siguiente el siguiente cron lo intenta.
+- **Atribución ODbL en footer del Fridge**: requerido por la licencia. Lo más visible es ahí porque es donde el usuario ve los productos importados. Cuando llegue F6 con página "Acerca de", duplicar también ahí.
+
+**Notas / pendientes**:
+
+- ⏳ **Primera ejecución de validación pendiente** (acción del usuario, no es código). Dos opciones:
+  - **Force-run desde GCP Console**: Cloud Console → Cloud Scheduler → buscar `firebase-schedule-nightlyOFFSync-europe-west1` → click "Force Run" → ver logs en `firebase functions:log --only nightlyOFFSync`. Tarda 5-15 minutos.
+  - **Esperar al cron natural**: el próximo 03:00 hora Madrid se ejecutará solo. Mañana por la mañana revisar `_meta/offSync` en Firestore.
+- ⏳ **Monitoring (C4.9)**: requiere alert policy en Cloud Monitoring. Pendiente, no es código. Documentar pasos cuando llegue.
+- ⏳ **Retention (C4.10)**: productos retirados de OFF se quedan indefinidamente en el mirror. Implica un sweep periódico. Diferido, no crítico.
+- ⏳ **Cliente lectura directa de offProducts (C4.7)**: ahorraría una invocación de Function por lookup pero requiere lectura pública del Firestore. Diferido.
+- ⚠ **Si el dump crece**: 30 min puede dejar de caber. Anotar que si vemos `_meta/offSync.status === 'running'` colgado significa que llegamos al timeout, y hay que paginar.
+- ⚠ **Allowlist ADMIN_UIDS hardcoded**: el uid es del PC actual de Igor. Si entra desde otro device anónimo nuevo, su nuevo uid NO está en la allowlist y `triggerOffSync` lo rechazará. Para añadir más uids: editar `nightlyOFFSync.ts` y redeploy. Migrar a custom claims en F6 elimina esto.
+- Tests: 97 → 118 (+21 nuevos). Build limpio. Deploy exitoso.
+
+**Próxima sesión**: Igor force-runea el sync una vez para validar, mira `_meta/offSync` y reporta. Si todo OK, Fase 4 cierra. Después: F0 deuda técnica (limpiar lint cliente para añadir step a CI), o pulir cualquier feature visible.
+
+---
+
 ## 2026-04-10 — Fix nombre OCR + F0.3 tests Vitest (cazó bug real) + F0.4 GitHub Actions
 
 **Contexto**: Igor probó el OCR y reportó que el nombre del producto se rellenaba con basura porque la foto típicamente es de la tabla nutricional, donde el nombre comercial no aparece. Además seguimos con A (tests + CI) que es F0.3 + F0.4 del plan.

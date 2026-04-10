@@ -15,3 +15,6 @@ initializeApp();
 // --- API handlers ---
 export { lookupBarcode } from './api/lookupBarcode';
 export { ocrLabel } from './api/ocrLabel';
+
+// --- Scheduled / admin handlers (Fase 4) ---
+export { nightlyOFFSync, triggerOffSync } from './api/nightlyOFFSync';

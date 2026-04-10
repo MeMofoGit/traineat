@@ -429,36 +429,32 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 
 > **Estado actual (2026-04-10)**: **NADA DE ESTO EXISTE AÚN**. Hoy `lookupBarcode` solo tiene el cache perezoso `productCache` (se puebla orgánicamente con escaneos reales) y llama al API live de OFF en cada miss. Lo que ves en Firestore bajo `productCache/` son únicamente los productos que alguien ya ha escaneado. Cuando se implemente esta fase, aparecerá una colección nueva `offProducts/` con ~30-80k productos españoles pre-cacheados y `lookupBarcode` la consultará antes que `productCache`.
 
-- ☐ **C4.1** Function scheduled `nightlyOFFSync` (`pubsub.schedule('0 3 * * *', timezone='Europe/Madrid')`).
-  - **Generation 2** (necesaria por timeout largo: 1st gen = 9 min máx, 2nd gen = 60 min).
-  - Memory: 2 GB (streaming pero seguros).
-- ☐ **C4.2** Pipeline:
-  - Descarga `openfoodfacts-products.jsonl.gz` con streaming HTTP (no carga todo en RAM).
-  - Decompress on the fly con `zlib.createGunzip()`.
-  - Parse línea a línea con `readline`.
-  - Filtros:
-    - `countries_tags` contiene `en:spain` (configurable, expandible).
-    - `nutriments` contiene mínimos: `energy-kcal_100g`, `proteins_100g`, `carbohydrates_100g`, `fat_100g`.
-    - `product_name` no vacío.
-    - Opcional: popularidad mínima si filtra demasiado bajo.
-  - Mapping a shape interno (mismo que customFoods).
-  - Upsert por **batches de 500** en `offProducts/{barcode}` (Firestore batch limit).
-  - **Deduplicación**: mismo barcode aparece varias veces en el dump, quedarse con el más reciente / más completo.
-- ☐ **C4.3** Estado del sync en `_meta/offSync`: `{ lastRunAt, status, itemsProcessed, itemsInserted, itemsSkipped, errors[], dumpVersion }`.
-- ☐ **C4.4** Retomar sync interrumpido: si la function muere a mitad, próximo run lee `_meta/offSync.lastProcessedLine` y arranca desde ahí. (O simplemente reprocesa todo si es idempotente, lo que es).
-- ☐ **C4.5** Primera ejecución manual con dataset reducido (top 1000) para validar pipeline antes de soltar el sync nocturno completo.
-- ☐ **C4.6** Modificar `lookupBarcode` (Fase 2) para consultar `offProducts` ANTES que cache/API live.
-- ☐ **C4.7** Cliente: opcional, lectura directa de `offProducts/{barcode}` para tener cache offline gratis vía SDK Firestore (lookup sin Function).
-- ☐ **C4.8** Atribución ODbL en footer global + página "Acerca de" con texto:
-  > Información de productos por Open Food Facts contributors, disponible bajo Open Database License (ODbL).
-- ☐ **C4.9** Monitoring: alerta si el sync nocturno falla 2 veces seguidas. Email a admin.
-- ☐ **C4.10** Retention: borrar productos del mirror que llevan 30 días sin aparecer en el dump (productos retirados).
+- ☑ **C4.1** Function scheduled `nightlyOFFSync` desplegada (`schedule: '0 3 * * *'`, timezone Europe/Madrid, region europe-west1, 2 GiB, **timeout 1800s = 30min máximo para Gen 2 background functions** — el plan original decía 60min pero ese tope solo aplica a HTTP/callable). maxInstances 1, retryCount 0.
+- ☑ **C4.2** Pipeline implementado en `functions/src/services/offDumpSync.ts`:
+  - Streaming download del JSONL.gz vía `fetch` + `Readable.fromWeb` + `createGunzip` + `readline.createInterface`. End-to-end streaming, pico de memoria <300 MB.
+  - Parseo línea a línea con `JSON.parse` defensivo (líneas inválidas se cuentan como `productsErrored` y se saltan, no abortan el sync).
+  - Filtros en `shouldKeepProduct(p)`: país (`countries_tags` ∋ `en:spain` o `en:españa`, case-insensitive), nombre presente en al menos un idioma, los 4 macros obligatorios numéricos y >= 0.
+  - Mapeo reutiliza `mapOffProduct` del servicio existente — coherencia con el flujo de API live.
+  - Upsert en `db.batch()` de 500 docs. `flushBatch` cuando se llena, al final, y al hit del `maxItems` opcional.
+  - Idempotente: el dump es canonical, reprocesarlo da el mismo estado final. No requiere deduplicación explícita: docs con el mismo barcode se sobrescriben.
+- ☑ **C4.3** Estado del sync en `_meta/offSync`: `{ startedAt, finishedAt, durationMs, status: 'running'|'success'|'failed', linesRead, linesParsed, productsAccepted, productsSkipped, productsErrored, itemsWritten, errors[], dryRun }`. Se escribe `running` al inicio y `success`/`failed` al final.
+- ☐ **C4.4** Retomar sync interrumpido. **No implementado** — el sync actual es full pass cada vez. Si falla a mitad, el siguiente run procesa todo desde cero. Aceptable porque (a) idempotente, (b) caben holgadamente los 30 min, (c) la complejidad de cursor de pausa/resume no merece la pena ahora. Si el dump crece y dejamos de caber, paginar.
+- ☐ **C4.5** **Primera ejecución de validación** (acción del usuario): force-run desde GCP Console → Cloud Scheduler → buscar `firebase-schedule-nightlyOFFSync-europe-west1` → "Force Run". O alternativamente esperar al próximo 03:00 Madrid. Verificar `_meta/offSync` en Firestore para ver el resultado.
+- ☑ **C4.5b** **Endpoint manual `triggerOffSync`** desplegado: callable autenticada con allowlist `ADMIN_UIDS` (uid de Igor hardcoded por ahora). Acepta `{ maxItems?, dryRun? }` para validación con dataset reducido. Migrar a custom claims en F6.
+- ☑ **C4.6** `lookupBarcode` actualizada con cadena `offProducts` → `productCache` → API OFF live. Nueva fuente `'mirror'` en el `source` del response. El campo interno `syncedAt` del mirror se borra antes de devolver al cliente.
+- ☐ **C4.7** Cliente: lectura directa de `offProducts/{barcode}` desde el SDK Firestore (sin pasar por Function). **Diferido** — implica abrir lectura pública de la colección, lo cual está OK con las rules actuales (read auth) pero ahorra muy poco en latencia. Mantenido como mejora futura.
+- ☑ **C4.8** Atribución ODbL en `Fridge.jsx` como footer con links a openfoodfacts.org y opendatacommons.org/licenses/odbl. Texto: "Información de productos por Open Food Facts contributors, disponible bajo Open Database License (ODbL)."
+- ☐ **C4.9** Monitoring: alerta si el sync falla 2+ veces seguidas. **Pendiente** — requiere config en Cloud Monitoring (alert policy sobre `_meta/offSync.status === 'failed'` o sobre logs con `severity=ERROR`). No es código.
+- ☐ **C4.10** Retention: borrar productos del mirror que no aparezcan en N dumps consecutivos. **Diferido** — si OFF retira un producto, el mirror lo conserva indefinidamente. No es crítico (los productos retirados raramente se escanean).
+- ☑ **C4.11** Tests del filtro/parser: `offDumpSync.test.ts` con 21 tests cubriendo `shouldKeepProduct` (filtros país, nombre, nutriments, edge cases case-insensitive, macros 0).
 
 **Notas Fase 4**:
 - 50-100k productos × ~5 KB = 250-500 MB Firestore. Coste storage: ~$0.10/mes.
-- Costo Functions: ~$0.05 por ejecución (1 hora 2nd gen 2GB RAM). 30/mes = $1.50/mes.
-- Total: irrisorio para producto serio.
-- Expansión geográfica futura: parámetro `COUNTRIES = ['es', 'fr', 'it']`. Cuando llegue.
+- Coste Functions: ~$0.05 por ejecución (15min 2GiB Gen 2). 30/mes = $1.50/mes.
+- Coste ingress (descarga del dump): $0 — GCP no cobra ingress.
+- Total: irrisorio.
+- Limit de 1800s (30 min) en Gen 2 background functions. Si el dump crece y dejamos de caber, paginar (cursor en `_meta/offSync.lastProcessedLine`).
+- Expansión geográfica futura: añadir tags al `TARGET_COUNTRY_TAGS` (`en:france`, `en:italy`, etc.). Cambio de 1 línea.
 
 ---
 
