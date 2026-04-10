@@ -1,0 +1,67 @@
+name: CI
+
+# Corre en cada push a main/master y en PRs contra ellas.
+# Dos jobs en paralelo:
+#   - functions: lint build + tests unitarios del backend TypeScript
+#   - client:    build del frontend React (sin tests todavía, F0 cliente pendiente)
+#
+# Objetivo actual: bloquear regresiones antes de deploy manual. CD (auto-deploy)
+# queda fuera de scope hasta tener auth workload identity federation configurada
+# para que GitHub Actions pueda desplegar a Firebase sin exponer credenciales.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  functions:
+    name: Functions (build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+  client:
+    name: Client (build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Lint deliberadamente ausente: el repo tiene ~100 errores
+      # de lint pre-existentes heredados del commit inicial. Cuando
+      # se limpien (F0 deuda técnica), añadir: - run: npm run lint
+
+      - name: Vite build
+        run: npm run build

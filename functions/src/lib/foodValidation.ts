@@ -70,14 +70,31 @@ export class FoodValidationError extends Error {
   }
 }
 
-export function validateFoodServerSide(input: FoodInput): ValidatedFood {
+export interface ValidateOptions {
+  /**
+   * Si true, no se exige que `name` tenga 1-80 chars. Usar en flujos donde
+   * el nombre se rellena después (ej. OCR: el modelo no lo extrae, el
+   * usuario lo escribe en la pantalla de revisión).
+   */
+  skipName?: boolean;
+}
+
+export function validateFoodServerSide(
+  input: FoodInput,
+  options: ValidateOptions = {}
+): ValidatedFood {
   if (!input || typeof input !== 'object') {
     throw new FoodValidationError('Input must be an object');
   }
 
   const name = String(input.name || '').trim();
-  if (name.length < 1 || name.length > 80) {
-    throw new FoodValidationError('name must be 1-80 chars', 'name');
+  if (!options.skipName) {
+    if (name.length < 1 || name.length > 80) {
+      throw new FoodValidationError('name must be 1-80 chars', 'name');
+    }
+  } else if (name.length > 80) {
+    // En skipName igual rechazamos si alguien envía basura larga
+    throw new FoodValidationError('name must be <= 80 chars', 'name');
   }
 
   if (typeof input.category !== 'string' || !VALID_CATEGORIES.has(input.category)) {

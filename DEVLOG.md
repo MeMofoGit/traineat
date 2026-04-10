@@ -6,6 +6,69 @@ Bitácora de desarrollo. Lo más reciente arriba. Lee las últimas 3-5 entradas 
 
 ---
 
+## 2026-04-10 — Fix nombre OCR + F0.3 tests Vitest (cazó bug real) + F0.4 GitHub Actions
+
+**Contexto**: Igor probó el OCR y reportó que el nombre del producto se rellenaba con basura porque la foto típicamente es de la tabla nutricional, donde el nombre comercial no aparece. Además seguimos con A (tests + CI) que es F0.3 + F0.4 del plan.
+
+**Cambio**:
+
+*Fix nombre OCR:*
+- `functions/src/services/anthropicOcr.ts` — eliminado `productName` del schema JSON pedido al modelo. System prompt actualizado con instrucción explícita "You do NOT need to extract the product name. The user will type it manually". El mapper ahora pone `name: ''` siempre (con comentario explicando el porqué). `RawOcrResult` ya no tiene `productName`.
+- `functions/src/lib/foodValidation.ts` — nueva opción `validateFoodServerSide(input, { skipName: true })` que permite name vacío. Resto de validaciones (category, defaultUnit, macros, etc.) siguen activas. En modo skipName aún se rechaza name >80 chars.
+- `functions/src/api/ocrLabel.ts` — usa `validateFoodServerSide(extraction.food, { skipName: true })`.
+- `src/components/CustomFoodModal.jsx` — handler `handleFileSelected` añade `setTimeout(() => firstInputRef.current?.focus(), 100)` tras OCR exitoso para enfocar el campo nombre. Notice text actualizado para SIEMPRE incluir "Añade el nombre del producto arriba para guardarlo" independientemente de la confidence. Botón "Crear producto" ahora `disabled={saving || !form.name?.trim()}` con tooltip "Añade un nombre al producto" — feedback visual inmediato de que falta el nombre.
+
+*F0.3 — Vitest setup en functions/:*
+- `functions/vitest.config.ts` — config minimal: environment node, include `src/**/*.test.ts`, sin globals.
+- `functions/package.json` — devDep `vitest` ^4.1, scripts `test` (vitest run) y `test:watch`.
+- `functions/src/services/openfoodfacts.ts` — `inferCategory` exportada (era privada). Comentario `@internal exportado para testing`.
+- `functions/src/services/anthropicOcr.ts` — `extractJsonObject` exportada con misma anotación.
+
+*F0.3 — Tests escritos:*
+- `functions/src/lib/barcode.test.ts` — 9 tests. EAN-8/13/14/UPC-A válidos, rechazo non-string/longitud, regex no acepta letras/espacios/guiones, normalize trim.
+- `functions/src/lib/foodValidation.test.ts` — 24 tests organizados en happy paths / rejections / skipName option. Cubre: trim de name, optional macros incluidos/omitidos según value, defaults de servingSize por unit, rechazo de category inválida/unit inválida/servingSize ≤0/macros negativos/NaN/Infinity, barcode regex, skipName mode (acepta empty pero sigue rechazando >80 chars).
+- `functions/src/lib/rateLimit.test.ts` — 7 tests con `vi.useFakeTimers`. Cubre: primera request allowed, decrement de remaining, denied al exceder limit, sigue denied tras la primera denial dentro de la ventana, reset tras `advanceTimersByTime(61_000)` (ventana caducada), isolación per-key, retryAfterMs decreciente.
+- `functions/src/services/openfoodfacts.test.ts` — 25 tests divididos en `inferCategory`, `mapOffProduct` (happy paths, name preference es>default>en, truncate 80 chars, brand split, rechazo macros faltantes/negativos, optional macros con guard de no-negativo) y `fetchFromOpenFoodFacts` con `global.fetch` mockeado. **Incluye test de regresión explícito** del bug HTTP 404 fixed in commit 3913d3a. También cubre 200+status:0, HTTP 5xx (debe lanzar), nutriments incompletos (devuelve null), errores de red.
+- `functions/src/services/anthropicOcr.test.ts` — 11 tests sobre `extractJsonObject`. JSON limpio, JSON con whitespace, JSON wrapped en markdown ```json``` y ``` plano, JSON con prosa antes/después, JSON multi-línea, edge case de braces falsos en prosa (documentado como conocido), errores: invalid JSON / no object / arrays.
+
+*F0.3 — Bug real cazado por los tests:*
+- `extractJsonObject` aceptaba arrays como `RawOcrResult` porque `JSON.parse('[1,2,3]')` es válido. Si el modelo devuelve un array, todo el código posterior intentaría usarlo como objeto y fallaría de forma confusa. **Fix**: añadida verificación `typeof parsed === 'object' && !Array.isArray(parsed)` antes del `as RawOcrResult`. Caso canónico de por qué los tests valen.
+
+*F0.4 — GitHub Actions:*
+- `.github/workflows/ci.yml` — dos jobs en paralelo:
+  - `functions`: setup Node 22, `npm ci`, `npm run build`, `npm test` en `functions/` con cache de npm.
+  - `client`: setup Node 22, `npm ci`, `npm run build` en root.
+  - Trigger: push a main/master + PRs contra ellos.
+  - Lint del cliente DELIBERADAMENTE ausente — el código tiene ~100 errores de lint heredados del commit inicial. Comentario inline indicando "cuando se limpien (F0 deuda), añadir step `npm run lint`".
+
+*Deploy:*
+- Re-deploy de `ocrLabel` con dos cambios: (1) prompt sin productName, (2) `extractJsonObject` defensivo. Mismo handler, misma URL, transparente para el cliente.
+
+*Docs:*
+- `PROJECT_PLAN.md` — F0.3 y F0.4 marcados ☑. F0.2 con nota de los 100 errores heredados. Bloque de C3.2 actualizado para reflejar el cambio del prompt.
+
+**Por qué así**:
+
+- **Eliminar `productName` del schema en lugar de filtrarlo en el cliente**: si lo dejo en el schema, el modelo gasta tokens generándolo y puede confundirse pensando que es importante. Sacarlo del schema simplifica el prompt, reduce coste un tiny bit, y deja claro al modelo que su trabajo es SOLO macros.
+- **`skipName` como option en lugar de validador separado**: una sola función con un flag es más mantenible que dos validadores casi-iguales con drift potencial. La opción es explícita en el call site (`{ skipName: true }`), no se invoca por accidente.
+- **Botón Save disabled si no hay name**: feedback inmediato visual + tooltip. Sin esto, el usuario haría click → ve error rojo → confunde. Mejor preventivo.
+- **Autofocus al campo name tras OCR**: el siguiente paso natural es escribir el nombre, así que poner el cursor ahí ahorra un tap. UX positivo.
+- **Vitest sobre Jest**: ya usamos Vite, Vitest es su análogo natural, encaja con TypeScript out of the box, sintaxis similar a Jest. Cero setup más allá de la dep.
+- **Fake timers en rateLimit.test**: probar `windowMs` con esperas reales sería 60+ segundos por test. `vi.useFakeTimers + vi.advanceTimersByTime` cuesta milisegundos.
+- **Mock de `global.fetch` en openfoodfacts.test**: el alternativo (msw, nock) es overkill para probar 7 escenarios distintos. `vi.fn().mockResolvedValueOnce` directo es más legible.
+- **Mock del logger de firebase-functions con `vi.mock`**: sin esto los tests escupen logs en consola (y Firebase Functions logger en Node-test environment puede fallar al inicializarse). Mock simple = silencio.
+- **Lint excluido del CI por ahora**: añadirlo bloquearía el primer build inmediato, y arreglar 100 errores fuera de scope. Mejor commit verde y deuda anotada que rojo desde el día 1.
+- **Tests SOLO en functions/**: el cliente JS también merece tests pero (a) no tiene infra Vitest aún, (b) las funciones puras del cliente más críticas (`generateFoodId`, `validateFood`, `findFood`, `calculateItemMacrosPure`) son las equivalentes a las que testeo server-side, y la duplicación de validation está testada server-side. Cliente queda como F0.3-cliente para una sesión futura.
+
+**Notas / pendientes**:
+- El test de "braces balanceados con braces falsos en prosa" está documentado como **expected to throw** porque mi implementación actual busca el primer `{` y no maneja braces falsas en prosa anterior. Si en producción veo respuestas reales con ese patrón, puedo añadir un parser más sofisticado (ej. intentar JSON.parse de cada substring `{...}` candidata). Hasta entonces, el comportamiento actual es aceptable.
+- Tests del cliente quedan pendientes — `src/services/foods.js`, `src/hooks/useMacros.js` (`findFood`, `calculateItemMacrosPure`), parser regex de etiquetas si lo añadimos. Setup Vitest en root cuando toque.
+- CI no hace deploy automático. Para automatizar deploy a Firebase necesitamos workload identity federation (GitHub OIDC ↔ GCP) — está documentado por Google pero implica config en consola. Diferido.
+- ⚠ **Lint cleanup pendiente**: 101 errores en código pre-existente (sobre todo `Training.jsx`). Cuando se limpie, descomentar el step `- run: npm run lint` en `ci.yml` y volver a verificar.
+- Próxima sesión razonable: Fase 4 (OFF mirror nocturno) o limpiar lint del cliente.
+
+---
+
 ## 2026-04-10 — Fase 3 completa (OCR vía Claude Haiku) + polish Fase 2 (retry + cost alerts docs)
 
 **Contexto**: sesión combinada — cerrar lo que quedaba abierto de Fase 2 (retry automático, budget alerts docs) y arrancar Fase 3 de cero (OCR con visión para que el usuario pueda hacer foto a la etiqueta cuando OFF no conoce el producto). Ambas cosas son parte del triple manual/barcode/foto que configura el core value del feature Mi Nevera.

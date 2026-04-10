@@ -25,11 +25,12 @@ const MAX_TOKENS = 1024;
 
 const SYSTEM_PROMPT = `You are a nutrition label OCR assistant. You will receive a photo and must extract the nutritional values from a food product's nutrition facts label. Return ONLY a single JSON object, no markdown, no prose, no explanation outside the JSON.
 
+IMPORTANT: You do NOT need to extract the product name. The user will type it manually after reviewing your extraction. Focus EXCLUSIVELY on the numeric nutritional values and any brand visible ON the label itself. Do NOT put text like "Información nutricional" or "Nutrition Facts" anywhere in the output.
+
 REQUIRED SCHEMA:
 {
   "isLabel": boolean,          // true if the image shows a readable nutrition facts label
-  "productName": string | null, // product name if visible on the packaging (not on the label rows)
-  "brand": string | null,       // brand if visible
+  "brand": string | null,       // brand name IF clearly visible on the label/package (optional, omit if unsure)
   "servingSize": number,        // the reference amount the values refer to
   "unit": "g" | "ml" | "pz",    // unit of the serving size
   "calories": number,           // kcal per servingSize
@@ -45,7 +46,7 @@ REQUIRED SCHEMA:
 }
 
 CRITICAL RULES:
-- If the image is NOT a nutrition label (a random photo, menu, receipt, etc.), return {"isLabel": false, "productName": null, "brand": null, "servingSize": 100, "unit": "g", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "sugars": null, "fiber": null, "saturated": null, "salt": null, "confidence": "low", "notes": "Not a nutrition label"}
+- If the image is NOT a nutrition label (a random photo, menu, receipt, etc.), return {"isLabel": false, "brand": null, "servingSize": 100, "unit": "g", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "sugars": null, "fiber": null, "saturated": null, "salt": null, "confidence": "low", "notes": "Not a nutrition label"}
 - NEVER invent values. If you cannot read a specific value clearly, use null for optional fields. For mandatory fields (calories, protein, carbs, fat) use 0 and set confidence to "low".
 - Labels in Spanish/EU format use comma as decimal: "3,5" means 3.5
 - "por 100 g" / "per 100g" → servingSize: 100, unit: "g"
@@ -61,6 +62,7 @@ CRITICAL RULES:
 - "Sal" = salt
 - Round values to 2 decimal places.
 - Set confidence: "high" if everything readable, "medium" if some fields estimated, "low" if image is hard to read.
+- brand: ONLY include if you see a recognizable brand name/logo text on the package. If in doubt, use null. Never guess.
 
 Return ONLY the JSON. No opening "Here is:", no markdown fences, no trailing text.`;
 
@@ -167,8 +169,13 @@ export async function extractNutritionFromImage(
 
   // Construir el MappedFood. Categoría default 'other' — el usuario la
   // ajusta en la pantalla de revisión manual.
+  // El nombre SIEMPRE queda vacío — el usuario lo rellena manualmente tras
+  // la revisión. La foto típicamente es de la tabla nutricional, que no
+  // contiene el nombre comercial del producto (está en la parte delantera
+  // del envase). Extraer nombre del OCR introducía basura tipo
+  // "Información nutricional" o texto aleatorio.
   const food: MappedFood = {
-    name: (parsed.productName || 'Producto escaneado').trim().slice(0, 80),
+    name: '',
     category: 'other' as FoodCategory,
     defaultUnit: validUnit(parsed.unit),
     servingSize: isFiniteNumber(parsed.servingSize) && parsed.servingSize > 0 ? parsed.servingSize : 100,
@@ -203,7 +210,6 @@ export async function extractNutritionFromImage(
 
 interface RawOcrResult {
   isLabel: boolean;
-  productName: string | null;
   brand: string | null;
   servingSize: number;
   unit: string;
@@ -222,11 +228,19 @@ interface RawOcrResult {
 /**
  * Extrae el primer objeto JSON completo del texto. Defensivo ante modelos
  * que envuelven la respuesta en markdown (```json ... ```) o añaden prosa.
+ *
+ * Valida explícitamente que el valor parseado sea un plain object — si
+ * fuera array, string, number, etc. lanzaría. Esto evita que un modelo
+ * confundido devolviendo `[1,2,3]` o `"ok"` llegue al mapper y produzca
+ * un food corrupto.
+ *
+ * @internal exportado para testing
  */
-function extractJsonObject(text: string): RawOcrResult {
-  // Primero intento directo
+export function extractJsonObject(text: string): RawOcrResult {
+  let parsed: unknown;
   try {
-    return JSON.parse(text);
+    // Primero intento directo
+    parsed = JSON.parse(text);
   } catch {
     // Buscar el primer '{' y su '}' correspondiente (balanceado)
     const start = text.indexOf('{');
@@ -244,8 +258,13 @@ function extractJsonObject(text: string): RawOcrResult {
       }
     }
     if (end === -1) throw new Error('No matching closing brace');
-    return JSON.parse(text.slice(start, end + 1));
+    parsed = JSON.parse(text.slice(start, end + 1));
   }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Parsed JSON is not a plain object');
+  }
+  return parsed as RawOcrResult;
 }
 
 function isFiniteNumber(v: unknown): v is number {

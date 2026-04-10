@@ -210,14 +210,16 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
 *Setup que NO ata features pero las hace sostenibles. Se hace en paralelo a Fase 1, no la bloquea.*
 
 - ☐ **F0.1** Prettier + husky + lint-staged. Format on commit.
-- ☐ **F0.2** ESLint config revisada (reglas estrictas razonables, no excesivas).
-- ☐ **F0.3** Vitest setup. Primer test unitario de un parser/calculator existente para dejar la infra funcional.
-- ☐ **F0.4** GitHub Actions: workflow `ci.yml` con lint + test + build en cada PR a main.
+- ☐ **F0.2** ESLint config revisada — **hay ~100 errores heredados** del commit inicial en `src/pages/Training.jsx` y otros (variables sin usar, `routine` usado antes de declararse, etc.). Deuda técnica: limpiar antes de añadir el step de lint al CI.
+- ☑ **F0.3** Vitest setup en `functions/`. 76 tests cubriendo: `barcode.ts` (isValidBarcode variantes, normalize), `foodValidation.ts` (happy paths, rejections, skipName option), `rateLimit.ts` (ventanas, isolación per-key, decay de retryAfterMs con fakeTimers), `openfoodfacts.ts` (inferCategory, mapOffProduct nombre es>default>en, optionales, rangos inválidos, fetchFromOpenFoodFacts con global.fetch mockeado incluyendo **regresión del HTTP 404**), `anthropicOcr.ts` (extractJsonObject con markdown wrap, prosa, JSON multi-línea, inválido, arrays rechazados). **Vitest cliente pendiente** — solo functions por ahora.
+- ☑ **F0.4** GitHub Actions `ci.yml` con jobs `functions` (build + test) y `client` (build, lint pendiente). Corre en push a main y PRs.
 - ☐ **F0.5** Sentry cliente: SDK, init, source maps en build, captura errores no controlados.
 - ☐ **F0.6** Componente `<Toast>` global + provider para errores y mensajes user-friendly.
 - ☐ **F0.7** Componente `<Skeleton>` reutilizable para loading states.
 - ☐ **F0.8** Componente `<EmptyState>` reutilizable (icono + texto + CTA).
 - ☐ **F0.9** Documentar en `CLAUDE.md` la disciplina: nuevos componentes con loading + empty + error desde el principio.
+
+> **Nota F0.3 (tests)**: escribir el test `extractJsonObject > throws when there is no object in the text` cazó un bug real en el código original que aceptaba arrays como `RawOcrResult`. Corregido añadiendo verificación `typeof parsed === 'object' && !Array.isArray(parsed)`. Ejemplo canónico de por qué escribir tests antes de que haya bugs en producción merece la pena.
 
 ---
 
@@ -393,7 +395,7 @@ Concerns que tocan varias fases. Cada uno con status, fase donde se aborda y not
   - Errores estables con `details.code`: `OCR_NOT_A_LABEL`, `OCR_INCOMPLETE`, `OCR_API_ERROR`, `RATE_LIMITED`, `IMAGE_TOO_LARGE`, `IMAGE_INVALID`.
   - Si viene `hintBarcode` (flujo post-NOT_FOUND de lookupBarcode), lo asocia al food.
   - Validación server-side del food extraído antes de devolver.
-- ☑ **C3.2** Prompt engineering inicial en `anthropicOcr.ts`: system prompt de ~60 líneas con schema estricto, reglas de conversión (kJ→kcal, sodio→sal, coma decimal europea), instrucciones de "never invent" y manejo de "isLabel: false". Iterar con fotos reales cuando las haya.
+- ☑ **C3.2** Prompt engineering inicial en `anthropicOcr.ts`: system prompt con schema estricto, reglas de conversión (kJ→kcal, sodio→sal, coma decimal europea), instrucciones de "never invent" y manejo de "isLabel: false". **Actualizado 2026-04-10**: `productName` eliminado del schema porque el nombre del producto casi nunca aparece en la tabla nutricional (está en la parte delantera del envase). Ahora el nombre lo rellena el usuario manualmente. El servidor envía `name: ''` y `validateFoodServerSide` se llama con `{ skipName: true }`.
 - ☑ **C3.3** Cliente:
   - `src/services/ocr.js` con `preprocessImage(file)` y `ocrLabelFromBase64(base64, mimeType, hintBarcode?)`.
   - Preprocesado con `createImageBitmap({ imageOrientation: 'from-image' })` + Canvas resize a max 1200px + `toBlob` JPEG quality 0.85 + `FileReader.readAsDataURL` para base64. Fallback sin EXIF si el browser no soporta.

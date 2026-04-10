@@ -148,23 +148,29 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                 currentBarcode || undefined
             );
 
-            // 3. Rellenar el form
+            // 3. Rellenar el form. El servidor devuelve name='' deliberadamente
+            //    (el OCR no lo extrae, el usuario lo escribe).
             setForm(foodToForm(food));
             const m = food.macros || {};
             if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
                 setShowOptional(true);
             }
 
-            // 4. Notice según confianza
+            // 4. Notice según confianza. SIEMPRE recordamos al usuario que
+            //    añada el nombre, porque el OCR nunca lo rellena.
             const confText = confidence === 'high'
-                ? 'Etiqueta leída con alta confianza. Revisa los datos y confirma.'
+                ? 'Etiqueta leída con alta confianza.'
                 : confidence === 'medium'
                     ? 'Etiqueta leída. Algunos valores pueden necesitar revisión.'
                     : 'Lectura con baja confianza. Revisa cada campo antes de guardar.';
+            const namePrompt = ' Añade el nombre del producto arriba para guardarlo.';
             setLookupNotice({
                 kind: confidence === 'high' ? 'info' : 'warn',
-                text: notes ? `${confText} (${notes})` : confText,
+                text: notes ? `${confText} (${notes})${namePrompt}` : `${confText}${namePrompt}`,
             });
+
+            // 5. Autofocus al campo nombre para que el usuario empiece a escribir
+            setTimeout(() => firstInputRef.current?.focus(), 100);
         } catch (err) {
             // En todos los errores de OCR limpiamos campos (excepto barcode si lo había)
             if (err?.code === OcrErrors.NOT_A_LABEL) {
@@ -528,8 +534,9 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
                         <button
                             type="button"
                             onClick={handleSave}
-                            disabled={saving}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            disabled={saving || !form.name?.trim()}
+                            className="flex-1 py-3 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            title={!form.name?.trim() ? 'Añade un nombre al producto' : undefined}
                         >
                             <Save size={14} />
                             {saving ? 'Guardando…' : (mode === 'edit' ? 'Guardar cambios' : 'Crear producto')}

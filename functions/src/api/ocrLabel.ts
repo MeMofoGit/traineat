@@ -166,8 +166,11 @@ export const ocrLabel = onCall<OcrLabelRequest>(
     }
 
     // --- Validación server-side del food mapeado ---
+    // skipName: true porque el OCR no extrae el nombre (lo rellena el usuario
+    // en la pantalla de revisión). El resto de la validación (macros, unit,
+    // servingSize, categoría) sigue activa para sanitizar la salida de Claude.
     try {
-      validateFoodServerSide(extraction.food);
+      validateFoodServerSide(extraction.food, { skipName: true });
     } catch (err) {
       const msg = err instanceof FoodValidationError ? err.message : String(err);
       logger.error('OCR food failed validation', { uid, msg, food: extraction.food });

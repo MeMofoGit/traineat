@@ -215,8 +215,10 @@ function round2(n: number): number {
  * puede corregir la categoría manualmente desde el modal de revisión.
  *
  * Orden importa: lo más específico primero.
+ *
+ * @internal exportado para testing
  */
-function inferCategory(tags: string[] = []): FoodCategory {
+export function inferCategory(tags: string[] = []): FoodCategory {
   const joined = tags.join(' ').toLowerCase();
 
   if (/\b(en:)?(beverages|sodas|juices|waters|milks|plant-milks|drinks|teas|coffees)\b/.test(joined)) {
