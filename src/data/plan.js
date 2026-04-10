@@ -32,7 +32,7 @@ export const GIF_MAP = {
 };
 
 export const PLAN_DATA = {
-    activePhaseId: 1,
+    activePhaseId: 2, // Abril = Intensificación
     user: {
         name: 'Igor',
         birthday: '', // ISO date "YYYY-MM-DD" (la edad se deriva)

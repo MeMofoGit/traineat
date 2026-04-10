@@ -110,15 +110,25 @@ export default function Training() {
             const { exerciseIndex, timestamp } = plan.activeSession.lastSetContext;
             const ex = routine?.exercises?.[exerciseIndex];
             if (ex) {
-                let seconds = 60;
-                const r = ex.rest?.toLowerCase() || '';
-                if (r === '0' || r === '') {
-                    // Superserie: rest=0 significa "sin descanso, pasa al siguiente"
-                    // No mostrar timer.
-                    seconds = 0;
-                } else if (r.includes('m')) seconds = parseInt(r) * 60;
-                else if (r.includes('s')) seconds = parseInt(r);
-                else if (!isNaN(parseInt(r))) seconds = parseInt(r);
+                // Parsear rest: soporta "90s", "2m", "0", 0, "", null
+                const rawRest = ex.rest;
+                const r = String(rawRest ?? '')
+                    .toLowerCase()
+                    .trim();
+                const isZeroRest = r === '0' || r === '' || r === '0s';
+
+                let seconds = 0;
+                if (isZeroRest) {
+                    seconds = 0; // Superserie — sin descanso
+                } else if (r.includes('m')) {
+                    seconds = parseInt(r) * 60;
+                } else if (r.includes('s')) {
+                    seconds = parseInt(r);
+                } else if (!isNaN(parseInt(r))) {
+                    seconds = parseInt(r);
+                } else {
+                    seconds = 60; // fallback
+                }
 
                 if (seconds > 0) {
                     setRestDuration(seconds);
@@ -631,10 +641,12 @@ export default function Training() {
 
                 {routine?.exercises?.map((ex, i) => {
                     // Superserie detection: si rest="0", el siguiente ejercicio es su pareja
-                    const isSuperset = ex.rest === '0' || ex.rest === 0;
-                    const prevIsSuperset =
-                        i > 0 && (routine.exercises[i - 1]?.rest === '0' || routine.exercises[i - 1]?.rest === 0);
-                    const supersetGroup = ex.name?.match(/^([A-Z])\d\./)?.[1]; // "A" de "A1.", "B" de "B2."
+                    // Superserie: rest es "0", 0, "0s", "" o null/undefined
+                    const restVal = String(ex.rest ?? '').trim();
+                    const isSuperset = restVal === '0' || restVal === '' || restVal === '0s';
+                    const prevRestVal = i > 0 ? String(routine.exercises[i - 1]?.rest ?? '').trim() : '';
+                    const prevIsSuperset = i > 0 && (prevRestVal === '0' || prevRestVal === '' || prevRestVal === '0s');
+                    const supersetGroup = ex.name?.match(/^([A-Z])\d\./)?.[1];
 
                     // Progress Logic
                     const totalSets = parseInt(ex.sets) || 3;
