@@ -531,16 +531,69 @@ function WeeklyProgress({ plan }) {
 }
 
 function WeightBadge({ plan }) {
-    const weights = plan.weightLog || [];
-    if (weights.length === 0) return null;
+    const { logWeight } = usePlan();
+    const [showInput, setShowInput] = useState(false);
+    const [weightInput, setWeightInput] = useState('');
 
-    const latest = weights[weights.length - 1];
+    const weights = plan.weightLog || [];
+    const latest = weights.length > 0 ? weights[weights.length - 1] : null;
     const previous = weights.length > 1 ? weights[weights.length - 2] : null;
-    const diff = previous ? (latest.weight - previous.weight).toFixed(1) : null;
+    const diff = latest && previous ? (latest.weight - previous.weight).toFixed(1) : null;
     const diffNum = diff ? parseFloat(diff) : 0;
 
+    const handleLog = () => {
+        const val = parseFloat(weightInput);
+        if (!val || val < 30 || val > 300) return;
+        logWeight(val);
+        setWeightInput('');
+        setShowInput(false);
+    };
+
+    if (!latest && !showInput) {
+        return (
+            <button
+                onClick={() => setShowInput(true)}
+                className="w-full flex items-center justify-center gap-2 bg-slate-800/50 rounded-xl px-4 py-3 border border-dashed border-slate-700 text-slate-400 text-xs font-bold hover:border-blue-500 hover:text-blue-400 transition-colors"
+            >
+                <Scale size={14} /> Registrar primer peso
+            </button>
+        );
+    }
+
+    if (showInput) {
+        return (
+            <div className="flex items-center gap-2 bg-slate-800/50 rounded-xl px-3 py-2 border border-blue-500/50">
+                <Scale size={16} className="text-blue-400 shrink-0" />
+                <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    placeholder="74.5"
+                    value={weightInput}
+                    onChange={(e) => setWeightInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLog()}
+                    autoFocus
+                    className="flex-1 bg-transparent text-white text-sm font-bold outline-none w-20"
+                />
+                <span className="text-xs text-slate-500">kg</span>
+                <button onClick={handleLog} className="p-1.5 bg-blue-600 rounded-lg text-white">
+                    <Check size={14} />
+                </button>
+                <button onClick={() => setShowInput(false)} className="p-1.5 text-slate-400">
+                    <X size={14} />
+                </button>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex items-center justify-between bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-700/50">
+        <button
+            onClick={() => {
+                setWeightInput(String(latest.weight));
+                setShowInput(true);
+            }}
+            className="w-full flex items-center justify-between bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-700/50 hover:border-slate-600 transition-colors"
+        >
             <div className="flex items-center gap-2.5">
                 <Scale size={16} className="text-blue-400" />
                 <span className="text-sm font-bold text-white">{latest.weight} kg</span>
@@ -557,6 +610,6 @@ function WeightBadge({ plan }) {
             <span className="text-[10px] text-slate-500">
                 {new Date(latest.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
             </span>
-        </div>
+        </button>
     );
 }
