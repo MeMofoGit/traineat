@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePlan } from '../hooks/usePlan';
 import { calculateAge } from '../hooks/useMacros';
+import { useTranslation } from 'react-i18next';
 import {
     User,
     Save,
@@ -16,6 +17,7 @@ import {
     Link2,
     Loader2,
     Info,
+    Globe,
 } from 'lucide-react';
 import { linkWithCredential, linkWithPopup, EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth';
 import { useToast } from '../components/Toast';
@@ -232,6 +234,9 @@ export default function Profile() {
             {/* Cuenta */}
             <AccountSection authUser={authUser} signOut={signOut} />
 
+            {/* Idioma */}
+            <LanguageSelector />
+
             {/* Acerca de */}
             <Link
                 to="/about"
@@ -385,5 +390,36 @@ function AccountSection({ authUser, signOut }) {
                 <LogOut size={14} /> Cerrar sesión
             </button>
         </Section>
+    );
+}
+
+function LanguageSelector() {
+    const { t, i18n } = useTranslation();
+    const langs = [
+        { code: 'es', label: 'Español', flag: '🇪🇸' },
+        { code: 'en', label: 'English', flag: '🇬🇧' },
+    ];
+
+    return (
+        <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-4">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                <Globe size={14} /> {t('profile.language')}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                {langs.map((l) => (
+                    <button
+                        key={l.code}
+                        onClick={() => i18n.changeLanguage(l.code)}
+                        className={`py-2.5 rounded-xl text-sm font-bold border transition-all flex items-center justify-center gap-2 ${
+                            i18n.language === l.code
+                                ? 'bg-blue-600 border-blue-500 text-white'
+                                : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                        }`}
+                    >
+                        {l.flag} {l.label}
+                    </button>
+                ))}
+            </div>
+        </div>
     );
 }
