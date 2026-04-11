@@ -732,6 +732,61 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
 }
 
 /**
+ * Banner de rebalanceo: muestra si hay déficit/superávit de macros
+ * acumulado de las comidas anteriores y sugiere ajustes.
+ */
+function RebalanceBanner({ deficit }) {
+    if (!deficit) return null;
+    const { protein, carbs, fat, calories } = deficit;
+    // Solo mostrar si hay desviación significativa (>10g en algún macro o >50kcal)
+    const significant = Math.abs(protein) > 10 || Math.abs(carbs) > 15 || Math.abs(fat) > 8 || Math.abs(calories) > 50;
+    if (!significant) return null;
+
+    const isDeficit = calories < -20;
+    const isSurplus = calories > 20;
+
+    return (
+        <div
+            className={`rounded-xl p-3 text-xs border ${isDeficit ? 'bg-blue-950/30 border-blue-800/30' : isSurplus ? 'bg-amber-950/30 border-amber-800/30' : 'bg-slate-800/50 border-slate-700/30'}`}
+        >
+            <div
+                className={`font-bold mb-1 flex items-center gap-1.5 ${isDeficit ? 'text-blue-400' : 'text-amber-400'}`}
+            >
+                <Wand2 size={12} />
+                {isDeficit ? 'Te faltan macros hoy' : 'Has superado macros hoy'}
+            </div>
+            <div className="text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+                {Math.abs(protein) > 5 && (
+                    <span className="text-rose-400">
+                        {protein > 0 ? '+' : ''}
+                        {Math.round(protein)}g prot
+                    </span>
+                )}
+                {Math.abs(carbs) > 5 && (
+                    <span className="text-amber-400">
+                        {carbs > 0 ? '+' : ''}
+                        {Math.round(carbs)}g carbs
+                    </span>
+                )}
+                {Math.abs(fat) > 5 && (
+                    <span className="text-yellow-400">
+                        {fat > 0 ? '+' : ''}
+                        {Math.round(fat)}g grasa
+                    </span>
+                )}
+                <span className="text-slate-500">
+                    {calories > 0 ? '+' : ''}
+                    {Math.round(calories)} kcal
+                </span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">
+                {isDeficit ? 'Ajusta esta comida para compensar.' : 'Reduce cantidades en esta comida.'}
+            </p>
+        </div>
+    );
+}
+
+/**
  * Alimento en vista lectura con imagen del producto, info desplegable
  * con macros y badges Nutriscore/NOVA.
  */
@@ -949,7 +1004,7 @@ export default function Diet() {
         mealLabels,
     } = usePlan();
     const [trainingDay, setTrainingDay] = useState(true);
-    const { targets } = useMacros(trainingDay);
+    const { targets, sumMacros } = useMacros(trainingDay);
     const todayAutoSelected = React.useRef(false);
 
     // Auto-seleccionar la opción del día actual al montar
@@ -982,6 +1037,60 @@ export default function Diet() {
 
     // Helper to get meal data securely
     const getMeal = (id) => plan.meals[id] || {};
+
+    // Precalcular déficit acumulado para banner de rebalanceo
+    const mealSlotsWithBanner = useMemo(() => {
+        const slots = plan.schedule?.default?.filter((s) => s.type === 'meal') || [];
+        const todayKey = new Date().toISOString().split('T')[0];
+        const todayLog = plan.dailyLog?.[todayKey] || {};
+
+        // Fase 1: acumular macros de comidas registradas
+        const acc = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+        const accT = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+        let bannerSlotId = null;
+
+        for (const slot of slots) {
+            const log = todayLog[slot.id];
+            const isLogged = log?.status === 'confirmed' || log?.status === 'modified';
+            const mt = mealTargets[slot.id];
+
+            if (isLogged && mt) {
+                accT.calories += mt.calories;
+                accT.protein += mt.protein;
+                accT.carbs += mt.carbs;
+                accT.fat += mt.fat;
+                const meal = plan.meals[slot.id];
+                const items =
+                    log.status === 'modified' && log.items
+                        ? log.items
+                        : meal?.options?.[meal?.selectedOptionIndex || 0]?.items;
+                if (items) {
+                    const m = sumMacros(items);
+                    acc.calories += m.calories;
+                    acc.protein += m.protein;
+                    acc.carbs += m.carbs;
+                    acc.fat += m.fat;
+                }
+            } else if (!bannerSlotId && accT.calories > 0) {
+                bannerSlotId = slot.id;
+            }
+        }
+
+        // Fase 2: mapear con déficit solo en el slot del banner
+        const deficit = bannerSlotId
+            ? {
+                  calories: acc.calories - accT.calories,
+                  protein: acc.protein - accT.protein,
+                  carbs: acc.carbs - accT.carbs,
+                  fat: acc.fat - accT.fat,
+              }
+            : null;
+
+        return slots.map((slot) => ({
+            slot,
+            deficit: slot.id === bannerSlotId ? deficit : null,
+        }));
+    }, [plan.schedule, plan.dailyLog, plan.meals, mealTargets, sumMacros]);
 
     return (
         <div className="p-6 space-y-6 pb-24">
@@ -1042,13 +1151,12 @@ export default function Diet() {
                     </div>
                 )}
 
-                {plan.schedule.default
-                    .filter((item) => item.type === 'meal')
-                    .map((slot) => {
-                        const meal = getMeal(slot.id);
-                        return (
+                {mealSlotsWithBanner.map(({ slot, deficit }) => {
+                    const meal = getMeal(slot.id);
+                    return (
+                        <React.Fragment key={slot.id}>
+                            {deficit && <RebalanceBanner deficit={deficit} />}
                             <MealCard
-                                key={slot.id}
                                 slot={slot}
                                 meal={meal}
                                 trainingDay={trainingDay}
@@ -1059,8 +1167,9 @@ export default function Diet() {
                                 onRemoveSlot={removeMealSlot}
                                 mealLabels={mealLabels}
                             />
-                        );
-                    })}
+                        </React.Fragment>
+                    );
+                })}
 
                 {/* Añadir comida */}
                 <button
