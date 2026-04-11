@@ -32,6 +32,7 @@ import { suggestSubstitutions } from '../utils/dietSuggester';
 import { balanceMeal } from '../utils/mealBalancer';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
+import { useTranslation } from 'react-i18next';
 
 function StructuredMealEditor({
     initialItems,
@@ -112,6 +113,7 @@ function StructuredMealEditor({
     };
 
     const toast = useToast();
+    const { t } = useTranslation();
 
     const handleSuggestSubstitutions = () => {
         if (mealTarget) {
@@ -312,7 +314,7 @@ function StructuredMealEditor({
                                 onClick={handleSuggestSubstitutions}
                                 className="w-full py-2 bg-cyan-900/20 border border-cyan-800/50 text-cyan-300 hover:bg-cyan-900/40 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
                             >
-                                <Refrigerator size={13} /> Rellenar con Mi Nevera
+                                <Refrigerator size={13} /> {t('diet.fillFridge')}
                             </button>
                         )}
                 </div>
@@ -347,7 +349,7 @@ function StructuredMealEditor({
                     onClick={commitSave}
                     className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition-colors"
                 >
-                    Guardar Cambios
+                    {t('common.save')}
                 </button>
             </div>
 
@@ -369,6 +371,7 @@ function StructuredMealEditor({
 }
 
 function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlot, onRemoveSlot, mealLabels }) {
+    const { t } = useTranslation();
     const {
         updateMealOption,
         addMealOption,
@@ -614,7 +617,7 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                                 className="w-full text-center py-5 text-slate-500 hover:text-blue-400 text-sm border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-xl transition-colors flex flex-col items-center gap-2"
                             >
                                 <Plus size={20} />
-                                Añadir alimentos
+                                {t('diet.addFood')}
                             </button>
                         )}
 
@@ -710,13 +713,13 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                                             onClick={() => confirmMeal(slot.id)}
                                             className="flex-1 py-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/30 text-emerald-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
                                         >
-                                            <CheckCircle2 size={12} /> Comí esto
+                                            <CheckCircle2 size={12} /> {t('diet.ateThis')}
                                         </button>
                                         <button
                                             onClick={() => setEditingActual(true)}
                                             className="flex-1 py-1.5 bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/30 text-amber-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
                                         >
-                                            <UtensilsCrossed size={12} /> Comí otra cosa
+                                            <UtensilsCrossed size={12} /> {t('diet.ateSomethingElse')}
                                         </button>
                                     </div>
                                 )}
@@ -727,7 +730,7 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                         {editingActual && (
                             <div className="mt-3 pt-3 border-t border-amber-700/30">
                                 <div className="text-xs text-amber-400 font-bold mb-2 flex items-center gap-1.5">
-                                    <UtensilsCrossed size={12} /> Registrar lo que comiste
+                                    <UtensilsCrossed size={12} /> {t('diet.logWhatYouAte')}
                                 </div>
                                 <StructuredMealEditor
                                     initialItems={activeOption.items || []}
@@ -753,6 +756,7 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
  * acumulado de las comidas anteriores y sugiere ajustes.
  */
 function RebalanceBanner({ deficit }) {
+    const { t } = useTranslation();
     if (!deficit) return null;
     const { protein, carbs, fat, calories } = deficit;
     const significant = Math.abs(protein) > 10 || Math.abs(carbs) > 15 || Math.abs(fat) > 8 || Math.abs(calories) > 50;
@@ -796,12 +800,12 @@ function RebalanceBanner({ deficit }) {
     return (
         <div className="rounded-xl p-3 text-xs border bg-blue-950/30 border-blue-800/30">
             <div className="font-bold mb-1.5 flex items-center gap-1.5 text-blue-400">
-                <Wand2 size={12} /> Ajusta esta comida para equilibrar el día
+                <Wand2 size={12} /> {t('rebalance.title')}
             </div>
             <div className="space-y-1 text-[10px]">
                 {needMore.length > 0 && (
                     <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-emerald-400 font-bold">Añade:</span>
+                        <span className="text-emerald-400 font-bold">{t('rebalance.add')}</span>
                         {needMore.map((a, i) => (
                             <span key={i} className={a.color}>
                                 {a.value}
@@ -813,7 +817,7 @@ function RebalanceBanner({ deficit }) {
                 )}
                 {needLess.length > 0 && (
                     <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-amber-400 font-bold">Reduce:</span>
+                        <span className="text-amber-400 font-bold">{t('rebalance.reduce')}</span>
                         {needLess.map((a, i) => (
                             <span key={i} className={a.color}>
                                 {a.value}
@@ -968,6 +972,7 @@ function NovaBadge({ group }) {
 }
 
 function MacroSummary({ isTrainingDay }) {
+    const { t } = useTranslation();
     const { dailyConsumed, targets } = useMacros(isTrainingDay);
 
     const getPercent = (current, target) => Math.min(100, Math.round((current / target) * 100));
@@ -975,7 +980,7 @@ function MacroSummary({ isTrainingDay }) {
     return (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6">
             <h3 className="text-slate-400 text-xs font-bold uppercase mb-3 flex items-center gap-2">
-                <PieChart size={14} /> Resumen Diario (Estimado)
+                <PieChart size={14} /> {t('diet.dailySummary')}
             </h3>
 
             <div className="flex justify-between items-end mb-4">
@@ -1050,6 +1055,7 @@ export default function Diet() {
         mealLabels,
     } = usePlan();
     const [trainingDay, setTrainingDay] = useState(true);
+    const { t } = useTranslation();
     const { targets, sumMacros } = useMacros(trainingDay);
     const todayAutoSelected = React.useRef(false);
 
@@ -1142,12 +1148,12 @@ export default function Diet() {
         <div className="p-6 space-y-6 pb-24">
             <header className="space-y-3">
                 <div className="flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-white">Tu Nutrición</h1>
+                    <h1 className="text-2xl font-bold text-white">{t('diet.title')}</h1>
                     <button
                         onClick={() => setTrainingDay(!trainingDay)}
                         className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${trainingDay ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
                     >
-                        {trainingDay ? 'Modo: Entreno' : 'Modo: Descanso'}
+                        {trainingDay ? t('diet.modeTraining') : t('diet.modeRest')}
                     </button>
                 </div>
 
@@ -1156,7 +1162,7 @@ export default function Diet() {
                     <label className="flex items-center justify-between bg-emerald-950/40 border border-emerald-800/40 hover:border-emerald-600/50 rounded-xl px-3 py-2 cursor-pointer transition-colors">
                         <div className="flex items-center gap-2">
                             <Clock size={14} className="text-emerald-400 shrink-0" />
-                            <span className="text-xs text-emerald-300/80">Entreno a las</span>
+                            <span className="text-xs text-emerald-300/80">{t('diet.trainingAt')}</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <input
@@ -1222,7 +1228,7 @@ export default function Diet() {
                     onClick={() => addMealSlot('Comida', '12:00')}
                     className="w-full py-3 border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-2xl text-slate-500 hover:text-blue-400 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
                 >
-                    <Plus size={16} /> Añadir comida
+                    <Plus size={16} /> {t('diet.addMeal')}
                 </button>
             </div>
         </div>

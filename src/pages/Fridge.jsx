@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Refrigerator, Plus, Search, Edit2, Trash2, AlertTriangle, ArrowLeft, Lock, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '../components/Toast';
 import { usePlan } from '../hooks/usePlan';
 import { FOOD_CATEGORIES } from '../data/food_database';
@@ -27,6 +28,7 @@ import CustomFoodModal from '../components/CustomFoodModal';
  * - Profile vuelve a centrarse exclusivamente en perfil de usuario.
  */
 export default function Fridge() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const { customFoods, removeCustomFood } = usePlan();
     const entitlements = useEntitlements();
@@ -96,7 +98,7 @@ export default function Fridge() {
                     <Refrigerator size={24} />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-2xl font-bold text-white">Mi Nevera</h1>
+                    <h1 className="text-2xl font-bold text-white">{t('fridge.title')}</h1>
                     <p className="text-xs text-slate-400">
                         {total === 0
                             ? 'Tus productos personalizados'
@@ -110,7 +112,7 @@ export default function Fridge() {
                             className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0"
                         >
                             <Plus size={14} />
-                            Añadir
+                            {t('fridge.add')}
                         </button>
                     ) : (
                         <button
@@ -137,7 +139,7 @@ export default function Fridge() {
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Buscar producto…"
+                                placeholder={t('fridge.search')}
                                 className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-3 py-3 text-sm text-white outline-none focus:border-cyan-500"
                             />
                         </div>
@@ -168,7 +170,7 @@ export default function Fridge() {
                                 className="bg-transparent text-slate-400 outline-none cursor-pointer"
                             >
                                 <option value="name">Alfabético</option>
-                                <option value="recent">Recientes</option>
+                                <option value="recent">{t('fridge.sortRecent')}</option>
                             </select>
                         </div>
                     </div>
@@ -243,16 +245,14 @@ export default function Fridge() {
 // ----------------------------------------------------------------------------
 
 function EmptyState({ onCreate, canCreate }) {
+    const { t } = useTranslation();
     return (
         <div className="text-center py-16 px-6 border border-dashed border-slate-700 rounded-2xl">
             <div className="inline-block bg-cyan-900/20 p-5 rounded-full mb-4">
                 <Refrigerator size={40} className="text-cyan-400" />
             </div>
-            <h2 className="text-lg font-bold text-white mb-2">Tu nevera está vacía</h2>
-            <p className="text-sm text-slate-400 mb-6 max-w-sm mx-auto">
-                Añade los productos que tienes en casa con sus valores nutricionales reales para que tu plan sea
-                preciso. Más adelante podrás también escanearlos por código de barras o foto de la etiqueta.
-            </p>
+            <h2 className="text-lg font-bold text-white mb-2">{t('fridge.empty')}</h2>
+            <p className="text-sm text-slate-400 mb-6 max-w-sm mx-auto">{t('fridge.emptyDesc')}</p>
             {canCreate ? (
                 <button
                     onClick={onCreate}
@@ -420,6 +420,7 @@ function NovaBadge({ group }) {
 }
 
 function FoodDetailModal({ food, onClose }) {
+    const { t } = useTranslation();
     const m = food.macros || {};
     const cat = Object.values(FOOD_CATEGORIES).find((c) => c.id === food.category) || {
         icon: '🍽️',
@@ -478,7 +479,9 @@ function FoodDetailModal({ food, onClose }) {
 
                     <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
                         <div className="flex justify-between items-baseline mb-3">
-                            <span className="text-xs text-slate-400 uppercase font-bold">Información nutricional</span>
+                            <span className="text-xs text-slate-400 uppercase font-bold">
+                                {t('fridge.nutritionInfo')}
+                            </span>
                             <span className="text-[10px] text-slate-500">
                                 por {serving}
                                 {food.defaultUnit}

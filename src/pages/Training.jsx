@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import ExerciseModal from '../components/ExerciseModal';
 import { useToast } from '../components/Toast';
+import { useTranslation } from 'react-i18next';
 
 const PHASE_DATE_FMT = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 function formatPhaseDateRange(dates) {
@@ -45,6 +46,7 @@ function formatPhaseDateRange(dates) {
 }
 
 export default function Training() {
+    const { t } = useTranslation();
     const {
         plan,
         updateExercise,
@@ -362,7 +364,7 @@ export default function Training() {
                             </div>
                             <div>
                                 <div className="text-slate-300 text-xs font-bold uppercase">
-                                    {restPhase === 'overtime' ? '¡Tiempo pasado!' : 'Descanso'}
+                                    {restPhase === 'overtime' ? t('training.overtime') : t('training.restTimer')}
                                 </div>
                                 <RestCountdown
                                     startTime={restStartTime}
@@ -572,7 +574,7 @@ export default function Training() {
                                     className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-blue-500 transition-colors flex items-center gap-2"
                                 >
                                     <Save size={14} />
-                                    Finalizar
+                                    {t('training.finishSession')}
                                 </button>
                             </div>
                             {/* Progress bar de series completadas */}
@@ -725,7 +727,7 @@ export default function Training() {
                             {prevIsSuperset && (
                                 <div className="flex items-center justify-center -my-2 relative z-10">
                                     <div className="bg-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full border border-amber-500/30">
-                                        + sin descanso
+                                        + {t('training.noRest').toLowerCase()}
                                     </div>
                                 </div>
                             )}
@@ -743,7 +745,7 @@ export default function Training() {
                                 {/* Superserie badge */}
                                 {isSuperset && supersetGroup && (
                                     <div className="absolute -top-2 right-4 bg-amber-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full">
-                                        SUPERSERIE {supersetGroup}
+                                        {t('training.superset')} {supersetGroup}
                                     </div>
                                 )}
 
