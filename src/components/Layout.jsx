@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, Utensils, Dumbbell, User } from 'lucide-react';
+import { Home, Utensils, Dumbbell, User, Refrigerator } from 'lucide-react';
 
 export default function Layout() {
     const { pathname } = useLocation();
@@ -38,10 +38,11 @@ export default function Layout() {
                 className="fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 z-50"
             >
                 <div className="max-w-md mx-auto flex justify-around items-center p-4">
-                    <NavItem to="/" icon={<Home size={24} />} label="Inicio" />
-                    <NavItem to="/diet" icon={<Utensils size={24} />} label="Dieta" />
-                    <NavItem to="/training" icon={<Dumbbell size={24} />} label="Entreno" />
-                    <NavItem to="/profile" icon={<User size={24} />} label="Mis Datos" />
+                    <NavItem to="/" icon={<Home size={22} />} label="Inicio" />
+                    <NavItem to="/diet" icon={<Utensils size={22} />} label="Dieta" />
+                    <NavItem to="/fridge" icon={<Refrigerator size={22} />} label="Nevera" />
+                    <NavItem to="/training" icon={<Dumbbell size={22} />} label="Entreno" />
+                    <NavItem to="/profile" icon={<User size={22} />} label="Datos" />
                 </div>
             </nav>
         </div>
@@ -53,11 +54,11 @@ function NavItem({ to, icon, label }) {
         <NavLink
             to={to}
             className={({ isActive }) =>
-                `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-blue-500' : 'text-slate-500 hover:text-slate-300'}`
+                `flex flex-col items-center gap-0.5 transition-colors ${isActive ? 'text-blue-500' : 'text-slate-500 hover:text-slate-300'}`
             }
         >
             {icon}
-            <span className="text-xs font-medium">{label}</span>
+            <span className="text-[10px] font-medium">{label}</span>
         </NavLink>
     );
 }

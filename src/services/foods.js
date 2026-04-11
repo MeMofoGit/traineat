@@ -41,13 +41,14 @@ const VALID_UNITS = new Set(['g', 'ml', 'pz', 'taza', 'cda']);
  * @returns {string} foodId
  */
 export function generateFoodId(name) {
-    const slug = (name || 'food')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')   // strip diacritics
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 30) || 'food';
+    const slug =
+        (name || 'food')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 30) || 'food';
     const rand = Math.random().toString(36).slice(2, 8);
     return `user_${slug}_${rand}`;
 }
@@ -86,7 +87,7 @@ export function validateFood(input) {
         throw new Error('Unidad inválida');
     }
 
-    const defaultServing = (input.defaultUnit === 'g' || input.defaultUnit === 'ml') ? 100 : 1;
+    const defaultServing = input.defaultUnit === 'g' || input.defaultUnit === 'ml' ? 100 : 1;
     const servingSize = input.servingSize != null ? Number(input.servingSize) : defaultServing;
     if (!Number.isFinite(servingSize) || servingSize <= 0) {
         throw new Error('servingSize debe ser un número positivo');
@@ -121,7 +122,7 @@ export function validateFood(input) {
         barcode = b;
     }
 
-    return {
+    const food = {
         id: input.id || generateFoodId(name),
         name,
         category: input.category,
@@ -131,6 +132,14 @@ export function validateFood(input) {
         macros,
         ...(barcode ? { barcode } : {}),
     };
+
+    // Campos opcionales de OFF: pasar si vienen, no validar estrictamente
+    if (input.brand) food.brand = String(input.brand).slice(0, 100);
+    if (input.imageUrl) food.imageUrl = String(input.imageUrl);
+    if (input.nutriscoreGrade) food.nutriscoreGrade = String(input.nutriscoreGrade).toLowerCase();
+    if (input.novaGroup != null) food.novaGroup = Number(input.novaGroup) || undefined;
+
+    return food;
 }
 
 // ----------------------------------------------------------------------------
@@ -184,7 +193,7 @@ export async function getCustomFood(uid, foodId) {
 export async function listCustomFoods(uid) {
     const q = query(customFoodsCol(uid), orderBy('name'));
     const snap = await getDocs(q);
-    return snap.docs.map(d => d.data());
+    return snap.docs.map((d) => d.data());
 }
 
 /**
@@ -240,8 +249,8 @@ export function subscribeCustomFoods(uid, onChange, onError) {
     const q = query(customFoodsCol(uid), orderBy('name'));
     return onSnapshot(
         q,
-        snap => onChange(snap.docs.map(d => d.data())),
-        err => {
+        (snap) => onChange(snap.docs.map((d) => d.data())),
+        (err) => {
             if (onError) onError(err);
             else console.error('subscribeCustomFoods error', err);
         }

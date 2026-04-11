@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Refrigerator, Plus, Search, Edit2, Trash2, AlertTriangle, ArrowLeft, Lock } from 'lucide-react';
+import { Refrigerator, Plus, Search, Edit2, Trash2, AlertTriangle, ArrowLeft, Lock, X } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { usePlan } from '../hooks/usePlan';
 import { FOOD_CATEGORIES } from '../data/food_database';
@@ -38,6 +39,7 @@ export default function Fridge() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingFood, setEditingFood] = useState(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+    const [viewFood, setViewFood] = useState(null);
     const toast = useToast();
 
     const filtered = useMemo(() => {
@@ -105,10 +107,10 @@ export default function Fridge() {
                     (canCreate ? (
                         <button
                             onClick={openCreate}
-                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0"
                         >
                             <Plus size={14} />
-                            Nuevo
+                            Añadir
                         </button>
                     ) : (
                         <button
@@ -180,6 +182,7 @@ export default function Fridge() {
                                 <FoodCard
                                     key={food.id}
                                     food={food}
+                                    onView={() => setViewFood(food)}
                                     onEdit={() => openEdit(food)}
                                     onDelete={() => setConfirmDeleteId(food.id)}
                                     confirmDelete={confirmDeleteId === food.id}
@@ -229,6 +232,8 @@ export default function Fridge() {
                 </a>
                 .
             </footer>
+
+            {viewFood && <FoodDetailModal food={viewFood} onClose={() => setViewFood(null)} />}
         </div>
     );
 }
@@ -282,7 +287,7 @@ function CategoryChip({ active, onClick, label }) {
     );
 }
 
-function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCancelDelete }) {
+function FoodCard({ food, onView, onEdit, onDelete, confirmDelete, onConfirmDelete, onCancelDelete }) {
     const cat = Object.values(FOOD_CATEGORIES).find((c) => c.id === food.category) || FOOD_CATEGORIES.OTHER;
     const m = food.macros || {};
     const serving = food.servingSize || (food.defaultUnit === 'g' || food.defaultUnit === 'ml' ? 100 : 1);
@@ -316,20 +321,38 @@ function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCa
     }
 
     return (
-        <li className={`${cat.bg} border ${cat.border} rounded-xl p-4 flex items-center gap-3`}>
-            <span className="text-2xl shrink-0">{cat.icon}</span>
+        <li
+            className="bg-slate-800 border border-slate-700/50 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-slate-600 transition-colors"
+            onClick={onView}
+        >
+            {food.imageUrl ? (
+                <img src={food.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+            ) : (
+                <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl shrink-0 ${cat.bg} border ${cat.border}`}
+                >
+                    {cat.icon}
+                </div>
+            )}
             <div className="flex-1 min-w-0">
                 <div className="flex items-baseline justify-between gap-2">
                     <h4 className="text-sm font-bold text-white truncate">{food.name}</h4>
-                    <span className={`text-xs font-mono ${cat.color} shrink-0`}>
-                        {Math.round(m.calories || 0)} kcal
+                    <span className="text-xs font-mono text-slate-300 shrink-0">
+                        {Math.round(m.calories || 0)} <span className="text-slate-500">kcal</span>
                     </span>
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono mt-1">
-                    P {Math.round(m.protein || 0)}g · C {Math.round(m.carbs || 0)}g · G {Math.round(m.fat || 0)}g
-                    <span className="text-slate-600">
-                        {' '}
-                        · por {serving}
+                <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[10px] font-bold text-rose-400 bg-rose-900/20 px-1.5 py-0.5 rounded">
+                        {Math.round(m.protein || 0)}g P
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">
+                        {Math.round(m.carbs || 0)}g C
+                    </span>
+                    <span className="text-[10px] font-bold text-yellow-400 bg-yellow-900/20 px-1.5 py-0.5 rounded">
+                        {Math.round(m.fat || 0)}g G
+                    </span>
+                    <span className="text-[9px] text-slate-600">
+                        / {serving}
                         {food.defaultUnit}
                     </span>
                 </div>
@@ -340,17 +363,17 @@ function FoodCard({ food, onEdit, onDelete, confirmDelete, onConfirmDelete, onCa
                     </div>
                 )}
             </div>
-            <div className="flex flex-col gap-1 shrink-0">
+            <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button
                     onClick={onEdit}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
                     aria-label="Editar"
                 >
                     <Edit2 size={14} />
                 </button>
                 <button
                     onClick={onDelete}
-                    className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
+                    className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-700 rounded transition-colors"
                     aria-label="Borrar"
                 >
                     <Trash2 size={14} />
@@ -393,5 +416,110 @@ function NovaBadge({ group }) {
         >
             NOVA {group}
         </span>
+    );
+}
+
+function FoodDetailModal({ food, onClose }) {
+    const m = food.macros || {};
+    const cat = Object.values(FOOD_CATEGORIES).find((c) => c.id === food.category) || {
+        icon: '🍽️',
+        label: 'Otro',
+        color: 'text-slate-400',
+    };
+    const serving = food.servingSize ?? 100;
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[100] bg-slate-950/90 flex items-start justify-center pt-16 px-4 pb-4"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden max-h-[80vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {food.imageUrl ? (
+                    <div className="relative">
+                        <img src={food.imageUrl} alt={food.name} className="w-full h-48 object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
+                        <button
+                            onClick={onClose}
+                            className="absolute top-3 right-3 p-2 bg-slate-900/60 rounded-full text-white hover:bg-slate-900"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between p-4 border-b border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <span className="text-3xl">{cat.icon}</span>
+                            <span className="text-xs text-slate-500 uppercase font-bold">{cat.label}</span>
+                        </div>
+                        <button onClick={onClose} className="p-2 text-slate-400 hover:text-white">
+                            <X size={18} />
+                        </button>
+                    </div>
+                )}
+
+                <div className="p-5 space-y-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-white">{food.name}</h2>
+                        {food.brand && <p className="text-sm text-slate-400">{food.brand}</p>}
+                        {food.barcode && (
+                            <p className="text-[10px] text-slate-600 font-mono mt-0.5">EAN {food.barcode}</p>
+                        )}
+                    </div>
+
+                    {(food.nutriscoreGrade || food.novaGroup) && (
+                        <div className="flex gap-2">
+                            {food.nutriscoreGrade && <NutriscoreBadge grade={food.nutriscoreGrade} />}
+                            {food.novaGroup && <NovaBadge group={food.novaGroup} />}
+                        </div>
+                    )}
+
+                    <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+                        <div className="flex justify-between items-baseline mb-3">
+                            <span className="text-xs text-slate-400 uppercase font-bold">Información nutricional</span>
+                            <span className="text-[10px] text-slate-500">
+                                por {serving}
+                                {food.defaultUnit}
+                            </span>
+                        </div>
+                        <div className="text-xl font-bold text-white mb-3">{Math.round(m.calories || 0)} kcal</div>
+                        <div className="space-y-2">
+                            <NutrientRow label="Proteínas" value={m.protein} color="rose" />
+                            <NutrientRow label="Carbohidratos" value={m.carbs} color="amber" />
+                            {m.sugars != null && (
+                                <NutrientRow label="  de los cuales azúcares" value={m.sugars} color="amber" sub />
+                            )}
+                            <NutrientRow label="Grasas" value={m.fat} color="yellow" />
+                            {m.saturated != null && (
+                                <NutrientRow label="  de las cuales saturadas" value={m.saturated} color="yellow" sub />
+                            )}
+                            {m.fiber != null && <NutrientRow label="Fibra" value={m.fiber} color="emerald" />}
+                            {m.salt != null && <NutrientRow label="Sal" value={m.salt} color="slate" />}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+}
+
+function NutrientRow({ label, value, color, sub }) {
+    if (value == null) return null;
+    const v = Math.round(value * 10) / 10;
+    const colors = {
+        rose: 'text-rose-400',
+        amber: 'text-amber-400',
+        yellow: 'text-yellow-400',
+        emerald: 'text-emerald-400',
+        slate: 'text-slate-400',
+    };
+    return (
+        <div className={`flex justify-between items-center ${sub ? 'pl-3' : ''} ${sub ? 'text-[11px]' : 'text-xs'}`}>
+            <span className={sub ? 'text-slate-500' : 'text-slate-300'}>{label}</span>
+            <span className={`font-mono font-bold ${colors[color] || 'text-white'}`}>{v}g</span>
+        </div>
     );
 }

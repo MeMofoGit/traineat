@@ -28,7 +28,7 @@ import { suggestSubstitutions } from '../utils/dietSuggester';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
 
-function StructuredMealEditor({ initialItems, onSave, onCancel }) {
+function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = false }) {
     const { customFoods } = usePlan();
     const { calculateItemMacros } = useMacros();
     const entitlements = useEntitlements();
@@ -36,7 +36,7 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
 
     // If no structured items, try to parse or start empty
     const [items, setItems] = useState(initialItems || []);
-    const [isAdding, setIsAdding] = useState(false);
+    const [isAdding, setIsAdding] = useState(startAdding);
 
     // New Item State
     const [selectedCat, setSelectedCat] = useState('protein');
@@ -221,7 +221,12 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
                         <input
                             type="number"
                             placeholder="Cant."
-                            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white outline-none focus:border-blue-500"
+                            inputMode="decimal"
+                            className={`flex-1 bg-slate-800 border rounded-lg p-2 text-sm text-white outline-none transition-colors ${
+                                !qty && selectedFoodId
+                                    ? 'border-rose-500/60 focus:border-rose-500'
+                                    : 'border-slate-700 focus:border-blue-500'
+                            }`}
                             value={qty}
                             onChange={(e) => setQty(e.target.value)}
                         />
@@ -247,7 +252,8 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
                         </button>
                         <button
                             onClick={handleAddItem}
-                            className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
+                            disabled={!selectedFoodId || !qty}
+                            className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Añadir
                         </button>
@@ -331,12 +337,14 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
     const activeOption = meal.options ? meal.options[activeIndex] : { items: [], id: 1, name: 'Opción 1' };
 
     const [editingSlot, setEditingSlot] = useState(false);
+    const [quickAdd, setQuickAdd] = useState(false);
 
     // Safety check if migration hasn't run yet/render cycle quirk
     if (!activeOption) return null;
 
     const handleSave = (items) => {
         updateMealOption(slot.id, activeIndex, { items });
+        setQuickAdd(false);
         setIsEditing(false);
     };
 
@@ -476,36 +484,42 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
 
             {/* Content Area */}
             <div className="p-4">
-                {isEditing ? (
+                {isEditing || quickAdd ? (
                     <div className="space-y-4">
-                        {/* Rename Option */}
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-slate-500 uppercase font-bold">Variante:</span>
-                            <div className="relative flex-1">
-                                <input
-                                    type="text"
-                                    value={activeOption.name}
-                                    onChange={(e) => handleNameChange(e.target.value)}
-                                    className="bg-transparent border-b border-slate-600 text-sm text-white focus:border-blue-500 outline-none w-full pb-1"
-                                />
-                                <div className="absolute right-0 top-0">
-                                    {meal.options.length > 1 && (
-                                        <button
-                                            onClick={() => deleteMealOption(slot.id, activeIndex)}
-                                            className="text-rose-400 hover:bg-rose-900/30 p-1 rounded transition-colors"
-                                            title="Eliminar esta opción"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
+                        {/* Rename day — solo en edición completa, no en quickAdd */}
+                        {isEditing && (
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs text-slate-500 uppercase font-bold">Día:</span>
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        value={activeOption.name}
+                                        onChange={(e) => handleNameChange(e.target.value)}
+                                        className="bg-transparent border-b border-slate-600 text-sm text-white focus:border-blue-500 outline-none w-full pb-1"
+                                    />
+                                    <div className="absolute right-0 top-0">
+                                        {meal.options.length > 1 && (
+                                            <button
+                                                onClick={() => deleteMealOption(slot.id, activeIndex)}
+                                                className="text-rose-400 hover:bg-rose-900/30 p-1 rounded transition-colors"
+                                                title="Eliminar este día"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         <StructuredMealEditor
                             initialItems={activeOption.items || []}
                             onSave={handleSave}
-                            onCancel={() => setIsEditing(false)}
+                            onCancel={() => {
+                                setIsEditing(false);
+                                setQuickAdd(false);
+                            }}
+                            startAdding={quickAdd}
                         />
                     </div>
                 ) : (
@@ -513,44 +527,18 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                         {/* Ingredients List */}
                         {activeOption.items && activeOption.items.length > 0 ? (
                             <div className="space-y-2">
-                                {activeOption.items.map((item, i) => {
-                                    const foodDef = FOOD_DATABASE.find((f) => f.id === item.foodId);
-                                    const catDef = foodDef
-                                        ? Object.values(FOOD_CATEGORIES).find((c) => c.id === foodDef.category)
-                                        : null;
-
-                                    return (
-                                        <div
-                                            key={i}
-                                            className="flex items-center justify-between group/item p-2 hover:bg-slate-800/50 rounded-lg transition-colors border border-transparent hover:border-slate-700"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${catDef ? catDef.bg + ' ' + catDef.color : 'bg-slate-700 text-slate-400'}`}
-                                                >
-                                                    {item.category === 'custom' ? '✨' : catDef?.icon || '🍽️'}
-                                                </div>
-                                                <div>
-                                                    <div className="font-medium text-slate-200 text-sm">
-                                                        {item.name}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500 font-mono">
-                                                        {catDef?.label || 'Custom'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="font-mono font-bold text-blue-300 text-sm bg-blue-900/20 px-2 py-1 rounded">
-                                                {item.quantity}
-                                                {item.unit}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                {activeOption.items.map((item, i) => (
+                                    <ViewFoodItem key={i} item={item} />
+                                ))}
                             </div>
                         ) : (
-                            <div className="text-center py-4 text-slate-500 text-sm italic border-2 border-dashed border-slate-700 rounded-xl">
-                                Sin alimentos registrados
-                            </div>
+                            <button
+                                onClick={() => setQuickAdd(true)}
+                                className="w-full text-center py-5 text-slate-500 hover:text-blue-400 text-sm border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-xl transition-colors flex flex-col items-center gap-2"
+                            >
+                                <Plus size={20} />
+                                Añadir alimentos
+                            </button>
                         )}
 
                         {/* Macros / Goals */}
@@ -598,6 +586,137 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                 )}
             </div>
         </article>
+    );
+}
+
+/**
+ * Alimento en vista lectura con imagen del producto, info desplegable
+ * con macros y badges Nutriscore/NOVA.
+ */
+function ViewFoodItem({ item }) {
+    const [showInfo, setShowInfo] = useState(false);
+    const { customFoods } = usePlan();
+    const { calculateItemMacros } = useMacros();
+
+    // Buscar definición: primero en FOOD_DATABASE, luego en customFoods
+    const foodDef = FOOD_DATABASE.find((f) => f.id === item.foodId);
+    const customFood = !foodDef ? (customFoods || []).find((f) => f.id === item.foodId) : null;
+    const food = foodDef || customFood;
+    const catDef = food ? Object.values(FOOD_CATEGORIES).find((c) => c.id === (food.category || item.category)) : null;
+
+    const macros = calculateItemMacros(item);
+    const hasImage = customFood?.imageUrl;
+    const nutriscore = customFood?.nutriscoreGrade;
+    const nova = customFood?.novaGroup;
+
+    return (
+        <div className="bg-slate-900/30 rounded-xl overflow-hidden border border-slate-700/30">
+            <div className="flex items-center justify-between p-2.5">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <button onClick={() => setShowInfo((s) => !s)} className="shrink-0">
+                        {hasImage ? (
+                            <img src={hasImage} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                            <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${catDef ? catDef.bg + ' ' + catDef.color : 'bg-slate-700 text-slate-400'}`}
+                            >
+                                {catDef?.icon || '🍽️'}
+                            </div>
+                        )}
+                    </button>
+                    <div className="min-w-0">
+                        <div className="font-medium text-slate-200 text-sm truncate">{item.name}</div>
+                        <div className="text-[10px] text-slate-500">
+                            {item.quantity}
+                            {item.unit}
+                            {macros ? ` · ${macros.calories} kcal` : ''}
+                        </div>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setShowInfo((s) => !s)}
+                    className={`p-1.5 rounded-lg transition-colors shrink-0 ${showInfo ? 'text-blue-400 bg-blue-900/20' : 'text-slate-600 hover:text-blue-400'}`}
+                >
+                    <Info size={14} />
+                </button>
+            </div>
+
+            {showInfo && macros && (
+                <div className="px-3 pb-2.5">
+                    <div className="bg-slate-950/60 rounded-lg p-2.5 border border-slate-800/50">
+                        {hasImage && (
+                            <div className="mb-2 flex justify-center">
+                                <img src={hasImage} alt={item.name} className="w-20 h-20 rounded-xl object-cover" />
+                            </div>
+                        )}
+                        <div className="flex justify-between items-baseline mb-1.5">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                                Por {item.quantity} {item.unit}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-white">{macros.calories} kcal</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <div className="text-xs font-bold text-rose-400">{macros.protein}g</div>
+                                <div className="text-[9px] text-slate-500">Proteína</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-amber-400">{macros.carbs}g</div>
+                                <div className="text-[9px] text-slate-500">Carbos</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-yellow-500">{macros.fat}g</div>
+                                <div className="text-[9px] text-slate-500">Grasas</div>
+                            </div>
+                        </div>
+                        {(nutriscore || nova) && (
+                            <div className="flex gap-2 mt-2 pt-2 border-t border-slate-800/50">
+                                {nutriscore && <NutriscoreBadge grade={nutriscore} />}
+                                {nova && <NovaBadge group={nova} />}
+                            </div>
+                        )}
+                        {macros.orphan && (
+                            <div className="text-[10px] text-amber-400 mt-1.5 text-center">
+                                Producto no encontrado — macros aproximados
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const NUTRISCORE_COLORS = {
+    a: 'bg-emerald-600 text-white',
+    b: 'bg-lime-600 text-white',
+    c: 'bg-yellow-500 text-slate-900',
+    d: 'bg-orange-500 text-white',
+    e: 'bg-red-600 text-white',
+};
+function NutriscoreBadge({ grade }) {
+    const g = String(grade).toLowerCase();
+    return (
+        <span
+            className={`text-[9px] font-black px-1.5 py-0.5 rounded ${NUTRISCORE_COLORS[g] || 'bg-slate-700 text-slate-300'}`}
+        >
+            NS {g.toUpperCase()}
+        </span>
+    );
+}
+const NOVA_COLORS = {
+    1: 'bg-emerald-700 text-white',
+    2: 'bg-yellow-600 text-white',
+    3: 'bg-orange-600 text-white',
+    4: 'bg-red-700 text-white',
+};
+function NovaBadge({ group }) {
+    return (
+        <span
+            className={`text-[9px] font-black px-1.5 py-0.5 rounded ${NOVA_COLORS[group] || 'bg-slate-700 text-slate-300'}`}
+        >
+            NOVA {group}
+        </span>
     );
 }
 

@@ -40,6 +40,7 @@ interface OffProduct {
   };
   serving_size?: string;
   image_front_small_url?: string;
+  image_front_url?: string;
   nutriscore_grade?: string;
   ecoscore_grade?: string;
   nova_group?: number;
@@ -101,6 +102,7 @@ export async function fetchFromOpenFoodFacts(barcode: string): Promise<MappedFoo
     'nutriments',
     'serving_size',
     'image_front_small_url',
+    'image_front_url',
     'nutriscore_grade',
     'ecoscore_grade',
     'nova_group',
@@ -194,7 +196,9 @@ export function mapOffProduct(p: OffProduct, barcode: string): MappedFood | null
     const firstBrand = p.brands.split(',')[0]?.trim();
     if (firstBrand) food.brand = firstBrand.slice(0, 100);
   }
-  if (p.image_front_small_url) food.imageUrl = p.image_front_small_url;
+  if (p.image_front_url || p.image_front_small_url) {
+    food.imageUrl = p.image_front_url || p.image_front_small_url;
+  }
 
   // Scores nutricionales / ambientales
   if (p.nutriscore_grade) food.nutriscoreGrade = p.nutriscore_grade.toLowerCase();

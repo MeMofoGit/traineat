@@ -124,6 +124,68 @@ Toda la lógica que habla con Firestore vive en `src/services/`. Componentes y h
 - **Atribución ODbL** obligatoria.
   **Coste estimado**: 200-400 MB en Firestore (~$0.07/mes) + céntimos compute.
 
+### 2026-04-11 — Macro targets por fase: valores basados en evidencia científica
+
+**Contexto**: El algoritmo de balanceo (Fase 5a+) necesita macro targets objetivos que varíen según la fase del usuario. Los valores deben ser editables (un nutricionista puede querer cambiarlos).
+
+**Valores de referencia (evidence-based):**
+
+| Fase             | Calorías vs TDEE   | Proteína         | Carbos   | Grasa            | Ganancia/pérdida esperada  |
+| ---------------- | ------------------ | ---------------- | -------- | ---------------- | -------------------------- |
+| Volumen (bulk)   | +10-20%            | 1.6-2.2 g/kg     | 4-7 g/kg | resto            | +0.25-0.5 kg/semana        |
+| Intensificación  | +5-10%             | 2.0-2.4 g/kg     | 3-5 g/kg | 0.8-1.2 g/kg     | +0.1-0.25 kg/semana        |
+| Definición (cut) | -15-25% (~500kcal) | 2.3-3.1 g/kg LBM | 2-4 g/kg | 0.5-1.0 g/kg mín | -0.5-1.0 kg/semana         |
+| Recomposición    | -5% a mant.        | 2.0-2.4 g/kg     | 3-5 g/kg | 0.8-1.2 g/kg     | ±0 kg (composición cambia) |
+| Mantenimiento    | TDEE               | 1.6-2.0 g/kg     | 3-5 g/kg | 0.8-1.2 g/kg     | ±0 kg                      |
+
+**Fuentes:**
+
+- ISSN Position Stand: Protein and Exercise (Jäger et al., 2017) — 1.4-2.0 g/kg para ejercicio, 2.3-3.1 g/kg LBM en déficit para atletas lean. [PMC5477153](https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/)
+- ISSN Position Stand: Diets and Body Composition (Aragon et al., 2017) — proteínas altas (>3 g/kg) amplifican efecto térmico y preservación de masa magra. [PMC5470183](https://pmc.ncbi.nlm.nih.gov/articles/PMC5470183/)
+- Helms et al. (2014) "A systematic review of dietary protein during caloric restriction in resistance trained lean athletes" — 2.3-3.1 g/kg FFM en déficit. [PubMed 24092765](https://pubmed.ncbi.nlm.nih.gov/24092765/)
+- Lambert et al. (2004) "Macronutrient considerations for the sport of bodybuilding" — distribución por fases. [PubMed 15107010](https://pubmed.ncbi.nlm.nih.gov/15107010/)
+- Pilot study bulk & cut protocol (2024) — surplus/déficit cíclico mejora composición corporal. [PMC11990763](https://pmc.ncbi.nlm.nih.gov/articles/PMC11990763/)
+
+**Implementación:**
+
+- Cada fase (`plan.phases[n]`) tendrá un campo `macroTargets` con `{ proteinPerKg, carbsPerKg, fatPerKg, calorieAdjustPct }` autocalculado según `goalType` + peso/altura del usuario.
+- Los valores se proponen automáticamente al crear/cambiar de fase pero son editables.
+- `useMacros` lee `macroTargets` de la fase activa en vez del cálculo genérico actual.
+
+### 2026-04-11 — Algoritmo de balanceo: LP con preferencia Mi Nevera
+
+**Contexto**: El sugeridor actual hace sustitución item-a-item por similaridad. Para cuadrar macros de verdad se necesita un solver.
+
+**Enfoque**: Programación Lineal (LP), el estándar en optimización de dietas desde 1945 (Stigler Diet Problem).
+
+**Fuentes:**
+
+- Frontiers in Nutrition review: LP es "la herramienta ideal para convertir restricciones nutricionales en combinaciones de alimentos". [DOI 10.3389/fnut.2018.00048](https://www.frontiersin.org/journals/nutrition/articles/10.3389/fnut.2018.00048/full)
+- Stigler Diet Problem — Google OR-Tools. [developers.google.com](https://developers.google.com/optimization/lp/stigler_diet)
+- Soden & Fletcher — método computacional para modificar una dieta elegida manteniendo aceptabilidad individual.
+
+**Herramienta**: YALPS (2KB, 0 deps, resuelve LP/MIP en <1ms para nuestro tamaño). [GitHub](https://github.com/Ivordir/YALPS)
+
+**Modelo:**
+
+- Variables: cantidad de cada alimento × 7 días × N comidas
+- Restricciones: macro targets por comida (nutrientTiming), kcal diarias, qty mín/máx
+- Objetivo: minimizar desviación de macros + bonus por usar Mi Nevera + penalización por alejarse del plan original
+
+### 2026-04-11 — Link compartido para nutricionista
+
+**Contexto**: Validado por mercado (That Clean Life, NutritIO, Nutrium ofrecen portales de colaboración nutricionista-paciente).
+
+**Fuente**: PMC review on digital nutrition applications (2024). [PMC11986332](https://pmc.ncbi.nlm.nih.gov/articles/PMC11986332/)
+
+**Implementación (Fase 6+):**
+
+- Token temporal en `users/{uid}/shareTokens/{tokenId}` con expiración 7d y permisos read/readwrite
+- Vista pública `/shared/{tokenId}` sin auth requerido
+- El nutricionista puede ver/editar dieta y dejar notas
+- Campo `nutritionistNotes` separado de datos del usuario
+- Revocable en cualquier momento desde Profile
+
 ### 2026-04-09 — Pagos: Stripe (web) + RevenueCat (mobile)
 
 **Razón**: Apple/Google obligan IAP nativos en mobile, no permiten Stripe para bienes digitales (15-30% comisión). RevenueCat abstrae IAP Apple + Google + Stripe en una sola API y gestiona estado de suscripción. Cuando llegue mobile, RevenueCat también para web aunque proxee a Stripe, para tener una sola fuente de verdad.

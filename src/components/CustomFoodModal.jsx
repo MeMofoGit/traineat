@@ -35,7 +35,7 @@ import { useEntitlements } from '../hooks/useEntitlements';
  * en español. Capturamos y mostramos el error en el footer.
  */
 export default function CustomFoodModal({ isOpen, onClose, mode = 'create', initialFood = null, onSaved }) {
-    const { addCustomFood, editCustomFood } = usePlan();
+    const { addCustomFood, editCustomFood, customFoods } = usePlan();
     const entitlements = useEntitlements();
 
     const [form, setForm] = useState(() => buildEmptyForm());
@@ -77,66 +77,79 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
     }, [isOpen, mode, initialFood]);
 
     // --- Barcode lookup flow ---
-    const handleBarcodeDetected = useCallback(async (code) => {
-        setScannerOpen(false);
-        setLookupNotice(null);
-        setError(null);
-        setLookupLoading(true);
-        try {
-            const { food, source } = await lookupBarcode(code);
-            // Rellenar form con el resultado. Abrimos opcionales si vienen.
-            setForm(foodToForm(food));
-            const m = food.macros || {};
-            if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
-                setShowOptional(true);
+    const handleBarcodeDetected = useCallback(
+        async (code) => {
+            setScannerOpen(false);
+            setLookupNotice(null);
+            setError(null);
+            setLookupLoading(true);
+            try {
+                // Comprobar si ya tenemos este barcode en Mi Nevera
+                const existing = (customFoods || []).find((f) => f.barcode === code);
+
+                const { food, source } = await lookupBarcode(code);
+                // Rellenar form con el resultado. Abrimos opcionales si vienen.
+                // Si ya existe, preservar el id para que handleSave haga update en vez de create
+                const formData = foodToForm(food);
+                if (existing) {
+                    formData.name = formData.name || existing.name; // preservar nombre si OFF no lo trae
+                }
+                setForm(existing ? { ...formData, _existingId: existing.id } : formData);
+                const m = food.macros || {};
+                if (m.sugars != null || m.fiber != null || m.saturated != null || m.salt != null) {
+                    setShowOptional(true);
+                }
+                setLookupNotice({
+                    kind: existing ? 'info' : 'info',
+                    text: existing
+                        ? `"${existing.name}" ya está en tu Nevera. Revisa y pulsa Guardar para actualizar sus datos.`
+                        : source === 'session_cache'
+                          ? 'Producto recuperado de caché local — revisa los datos y confirma.'
+                          : source === 'cache'
+                            ? 'Producto encontrado (ya consultado antes). Revisa los datos y confirma.'
+                            : 'Producto encontrado en OpenFoodFacts. Revisa los datos y confirma.',
+                });
+            } catch (err) {
+                // En todos los casos de error limpiamos el form para no dejar
+                // datos residuales de escaneos anteriores. Solo en NOT_FOUND
+                // preservamos el barcode detectado (lo que hizo el usuario aún
+                // sirve: escaneó, el código quedó guardado).
+                if (err?.code === BarcodeErrors.NOT_FOUND) {
+                    setForm({ ...buildEmptyForm(), barcode: code });
+                    setShowOptional(false);
+                    setLookupNotice({
+                        kind: 'warn',
+                        // TODO (Fase 3): cuando la opción "Foto" esté implementada,
+                        // destacar el botón foto como acción siguiente natural,
+                        // incluso auto-enfocándolo o animándolo para invitar al click.
+                        text: 'No encontramos este producto en la base de datos. Muy pronto podrás hacer una foto a la etiqueta para leerla automáticamente. De momento, rellena los campos a mano.',
+                    });
+                } else if (err?.code === BarcodeErrors.UNAVAILABLE) {
+                    setForm(buildEmptyForm());
+                    setShowOptional(false);
+                    setLookupNotice({
+                        kind: 'warn',
+                        text:
+                            err.message || 'Servicio no disponible. Prueba en unos minutos o añade el producto a mano.',
+                    });
+                } else if (err?.code === BarcodeErrors.INVALID) {
+                    setForm(buildEmptyForm());
+                    setShowOptional(false);
+                    setLookupNotice({
+                        kind: 'warn',
+                        text: 'El código leído no tiene formato válido. Vuelve a intentarlo.',
+                    });
+                } else {
+                    setForm(buildEmptyForm());
+                    setShowOptional(false);
+                    setError(err?.message || 'Error al consultar el código');
+                }
+            } finally {
+                setLookupLoading(false);
             }
-            setLookupNotice({
-                kind: 'info',
-                text:
-                    source === 'session_cache'
-                        ? 'Producto recuperado de caché local — revisa los datos y confirma.'
-                        : source === 'cache'
-                          ? 'Producto encontrado (ya consultado antes). Revisa los datos y confirma.'
-                          : 'Producto encontrado en OpenFoodFacts. Revisa los datos y confirma.',
-            });
-        } catch (err) {
-            // En todos los casos de error limpiamos el form para no dejar
-            // datos residuales de escaneos anteriores. Solo en NOT_FOUND
-            // preservamos el barcode detectado (lo que hizo el usuario aún
-            // sirve: escaneó, el código quedó guardado).
-            if (err?.code === BarcodeErrors.NOT_FOUND) {
-                setForm({ ...buildEmptyForm(), barcode: code });
-                setShowOptional(false);
-                setLookupNotice({
-                    kind: 'warn',
-                    // TODO (Fase 3): cuando la opción "Foto" esté implementada,
-                    // destacar el botón foto como acción siguiente natural,
-                    // incluso auto-enfocándolo o animándolo para invitar al click.
-                    text: 'No encontramos este producto en la base de datos. Muy pronto podrás hacer una foto a la etiqueta para leerla automáticamente. De momento, rellena los campos a mano.',
-                });
-            } else if (err?.code === BarcodeErrors.UNAVAILABLE) {
-                setForm(buildEmptyForm());
-                setShowOptional(false);
-                setLookupNotice({
-                    kind: 'warn',
-                    text: err.message || 'Servicio no disponible. Prueba en unos minutos o añade el producto a mano.',
-                });
-            } else if (err?.code === BarcodeErrors.INVALID) {
-                setForm(buildEmptyForm());
-                setShowOptional(false);
-                setLookupNotice({
-                    kind: 'warn',
-                    text: 'El código leído no tiene formato válido. Vuelve a intentarlo.',
-                });
-            } else {
-                setForm(buildEmptyForm());
-                setShowOptional(false);
-                setError(err?.message || 'Error al consultar el código');
-            }
-        } finally {
-            setLookupLoading(false);
-        }
-    }, []);
+        },
+        [customFoods]
+    );
 
     // --- OCR flow ---
     const handleFileSelected = useCallback(
@@ -298,6 +311,9 @@ export default function CustomFoodModal({ isOpen, onClose, mode = 'create', init
             let saved;
             if (mode === 'edit' && initialFood) {
                 saved = await editCustomFood(initialFood.id, payload);
+            } else if (form._existingId) {
+                // Actualizar producto existente detectado por barcode
+                saved = await editCustomFood(form._existingId, payload);
             } else {
                 saved = await addCustomFood(payload);
             }
@@ -714,6 +730,9 @@ function buildEmptyForm() {
         servingSize: '100',
         barcode: '',
         brand: '',
+        imageUrl: '',
+        nutriscoreGrade: '',
+        novaGroup: '',
         macros: {
             calories: '',
             protein: '',
@@ -736,6 +755,10 @@ function foodToForm(food) {
         servingSize: food.servingSize != null ? String(food.servingSize) : '100',
         barcode: food.barcode || '',
         brand: food.brand || '',
+        // Campos OFF pass-through (no editables, se preservan al guardar)
+        imageUrl: food.imageUrl || '',
+        nutriscoreGrade: food.nutriscoreGrade || '',
+        novaGroup: food.novaGroup || '',
         macros: {
             calories: m.calories != null ? String(m.calories) : '',
             protein: m.protein != null ? String(m.protein) : '',
@@ -770,13 +793,16 @@ function formToFood(form) {
         servingSize: parseNum(form.servingSize),
         macros,
     };
-    // Preservar barcode y brand si se rellenaron (OFF o manual)
+    // Preservar barcode, brand y campos OFF
     if (form.barcode && String(form.barcode).trim()) {
         out.barcode = String(form.barcode).trim();
     }
     if (form.brand && String(form.brand).trim()) {
         out.brand = String(form.brand).trim();
     }
+    if (form.imageUrl) out.imageUrl = form.imageUrl;
+    if (form.nutriscoreGrade) out.nutriscoreGrade = form.nutriscoreGrade;
+    if (form.novaGroup) out.novaGroup = Number(form.novaGroup) || undefined;
     return out;
 }
 
