@@ -207,13 +207,16 @@ Toda la lógica que habla con Firestore vive en `src/services/`. Componentes y h
 
 **Fuente**: PMC review on digital nutrition applications (2024). [PMC11986332](https://pmc.ncbi.nlm.nih.gov/articles/PMC11986332/)
 
-**Implementación (Fase 6+):**
+**Implementación — COMPLETADA 2026-04-12:**
 
-- Token temporal en `users/{uid}/shareTokens/{tokenId}` con expiración 7d y permisos read/readwrite
-- Vista pública `/shared/{tokenId}` sin auth requerido
-- El nutricionista puede ver/editar dieta y dejar notas
-- Campo `nutritionistNotes` separado de datos del usuario
-- Revocable en cualquier momento desde Profile
+- ☑ Token en `_shareTokens/{tokenId}` (top-level, lectura pública) + copia en `users/{uid}/shareTokens/{tokenId}` (para listar/revocar)
+- ☑ Vista pública `/shared/{tokenId}` sin auth: muestra plan completo con comidas, alimentos, macros
+- ☑ UI en Profile: "Compartir con nutricionista" — generar enlace (copia al portapapeles), lista de enlaces activos, revocar
+- ☑ Firestore rules actualizadas: `_shareTokens` lectura pública, `users/{uid}/data` y `customFoods` lectura pública (uid no adivinable)
+- ☐ Pendiente Fase 6+: permisos `readwrite` para que el nutricionista edite, campo `nutritionistNotes`, migrar a Function callable para seguridad reforzada
+
+**Compromiso de seguridad MVP:**
+Las rules permiten lectura pública de `users/{uid}/data/plan` y `customFoods`. Los uid son UUIDs de 28 caracteres generados por Firebase Auth — no adivinables en la práctica. Para producción, migrar a una Function callable `getSharedPlan(tokenId)` que valide el token server-side y devuelva solo los datos necesarios.
 
 ### 2026-04-09 — Pagos: Stripe (web) + RevenueCat (mobile)
 

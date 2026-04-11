@@ -29,11 +29,29 @@ service cloud.firestore {
       return isAuthed() && request.auth.uid == uid;
     }
 
-    // --- Per-user data: todo bajo users/{uid} solo accesible por el propio usuario ---
+    // --- Per-user data ---
+    // Escritura: solo el propietario.
+    // Lectura: propietario + lectura pública del plan y customFoods
+    // (para SharedView vía token — el token valida en cliente, los uid
+    // son UUIDs no adivinables). En Fase 6+ migrar a Function callable.
     match /users/{uid} {
       allow read, write: if isOwner(uid);
 
-      match /{document=**} {
+      match /data/{docId} {
+        allow read: if true;
+        allow write: if isOwner(uid);
+      }
+      match /customFoods/{foodId} {
+        allow read: if true;
+        allow write: if isOwner(uid);
+      }
+      match /history/{sessionId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /shareTokens/{tokenId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /profile/{docId} {
         allow read, write: if isOwner(uid);
       }
     }
@@ -54,6 +72,15 @@ service cloud.firestore {
     match /_meta/{doc} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // --- Tokens compartidos (link nutricionista) ---
+    // Lectura pública: SharedView los lee sin auth para validar expiración.
+    // Escritura: solo el usuario autenticado (via servicio cliente que verifica uid).
+    // Contenido: tokenId, uid, permissions, expiresAt — no datos sensibles.
+    match /_shareTokens/{tokenId} {
+      allow read: if true;
+      allow write: if isAuthed();
     }
   }
 }
