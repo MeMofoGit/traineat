@@ -24,6 +24,7 @@ import {
     CheckCircle2,
     Undo2,
     UtensilsCrossed,
+    AlertTriangle,
 } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
@@ -412,6 +413,15 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
     const effectiveItems = isModified && mealLog?.items ? mealLog.items : activeOption.items;
     const macros = effectiveItems && effectiveItems.length > 0 ? sumMacros(effectiveItems) : null;
 
+    // Warning si excede el target de la comida
+    const exceeds =
+        macros &&
+        mealTarget &&
+        (macros.calories > mealTarget.calories * 1.15 ||
+            macros.protein > mealTarget.protein * 1.2 ||
+            macros.carbs > mealTarget.carbs * 1.2 ||
+            macros.fat > mealTarget.fat * 1.3);
+
     return (
         <article className="bg-slate-800/50 rounded-2xl overflow-hidden border border-slate-700/50 hover:border-blue-500/30 transition-all group">
             {/* Header: Time & Title */}
@@ -457,6 +467,7 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                     ) : (
                         <div className="flex items-center gap-2 min-w-0">
                             <h3 className="font-bold text-slate-200 truncate">{slot.label}</h3>
+                            {exceeds && <AlertTriangle size={14} className="text-amber-400 shrink-0" />}
                             <span className="text-xs font-mono text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded shrink-0">
                                 {slot.time}
                             </span>
@@ -647,6 +658,12 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                                     {meal.note}
                                 </span>
                             )}
+                            {macros && macros.protein > 50 && (
+                                <p className="text-[9px] text-slate-500 mt-1">
+                                    Nota: la síntesis muscular es óptima con 30-40g de proteína por toma. Más se absorbe
+                                    pero con rendimiento decreciente.
+                                </p>
+                            )}
                         </div>
 
                         {/* Food Diary — confirmar / editar lo que comí */}
@@ -738,49 +755,78 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
 function RebalanceBanner({ deficit }) {
     if (!deficit) return null;
     const { protein, carbs, fat, calories } = deficit;
-    // Solo mostrar si hay desviación significativa (>10g en algún macro o >50kcal)
     const significant = Math.abs(protein) > 10 || Math.abs(carbs) > 15 || Math.abs(fat) > 8 || Math.abs(calories) > 50;
     if (!significant) return null;
 
-    const isDeficit = calories < -20;
-    const isSurplus = calories > 20;
+    // Construir lista de ajustes necesarios en lenguaje claro
+    // deficit negativo = te falta → necesitas añadir
+    // deficit positivo = te sobra → necesitas reducir
+    const adjustments = [];
+    if (Math.abs(protein) > 5) {
+        adjustments.push({
+            label: 'proteína',
+            value: Math.abs(Math.round(protein)),
+            unit: 'g',
+            action: protein < 0 ? 'add' : 'reduce',
+            color: 'text-rose-400',
+        });
+    }
+    if (Math.abs(carbs) > 5) {
+        adjustments.push({
+            label: 'carbos',
+            value: Math.abs(Math.round(carbs)),
+            unit: 'g',
+            action: carbs < 0 ? 'add' : 'reduce',
+            color: 'text-amber-400',
+        });
+    }
+    if (Math.abs(fat) > 5) {
+        adjustments.push({
+            label: 'grasa',
+            value: Math.abs(Math.round(fat)),
+            unit: 'g',
+            action: fat < 0 ? 'add' : 'reduce',
+            color: 'text-yellow-400',
+        });
+    }
+
+    const needMore = adjustments.filter((a) => a.action === 'add');
+    const needLess = adjustments.filter((a) => a.action === 'reduce');
 
     return (
-        <div
-            className={`rounded-xl p-3 text-xs border ${isDeficit ? 'bg-blue-950/30 border-blue-800/30' : isSurplus ? 'bg-amber-950/30 border-amber-800/30' : 'bg-slate-800/50 border-slate-700/30'}`}
-        >
-            <div
-                className={`font-bold mb-1 flex items-center gap-1.5 ${isDeficit ? 'text-blue-400' : 'text-amber-400'}`}
-            >
-                <Wand2 size={12} />
-                {isDeficit ? 'Te faltan macros hoy' : 'Has superado macros hoy'}
+        <div className="rounded-xl p-3 text-xs border bg-blue-950/30 border-blue-800/30">
+            <div className="font-bold mb-1.5 flex items-center gap-1.5 text-blue-400">
+                <Wand2 size={12} /> Ajusta esta comida para equilibrar el día
             </div>
-            <div className="text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                {Math.abs(protein) > 5 && (
-                    <span className="text-rose-400">
-                        {protein > 0 ? '+' : ''}
-                        {Math.round(protein)}g prot
-                    </span>
+            <div className="space-y-1 text-[10px]">
+                {needMore.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-emerald-400 font-bold">Añade:</span>
+                        {needMore.map((a, i) => (
+                            <span key={i} className={a.color}>
+                                {a.value}
+                                {a.unit} {a.label}
+                                {i < needMore.length - 1 ? ',' : ''}
+                            </span>
+                        ))}
+                    </div>
                 )}
-                {Math.abs(carbs) > 5 && (
-                    <span className="text-amber-400">
-                        {carbs > 0 ? '+' : ''}
-                        {Math.round(carbs)}g carbs
-                    </span>
+                {needLess.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-amber-400 font-bold">Reduce:</span>
+                        {needLess.map((a, i) => (
+                            <span key={i} className={a.color}>
+                                {a.value}
+                                {a.unit} {a.label}
+                                {i < needLess.length - 1 ? ',' : ''}
+                            </span>
+                        ))}
+                    </div>
                 )}
-                {Math.abs(fat) > 5 && (
-                    <span className="text-yellow-400">
-                        {fat > 0 ? '+' : ''}
-                        {Math.round(fat)}g grasa
-                    </span>
-                )}
-                <span className="text-slate-500">
-                    {calories > 0 ? '+' : ''}
-                    {Math.round(calories)} kcal
-                </span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">
-                {isDeficit ? 'Ajusta esta comida para compensar.' : 'Reduce cantidades en esta comida.'}
+            <p className="text-[10px] text-slate-500 mt-1.5">
+                Diferencia: {Math.round(Math.abs(calories))} kcal {calories < 0 ? 'por debajo' : 'por encima'} del
+                objetivo
             </p>
         </div>
     );
@@ -1333,21 +1379,29 @@ function SuggestionPanel({ suggestions, items, onApply, onClose }) {
  * Mini barra de progreso de un macro para una comida, con target opcional.
  */
 function MealMacroBar({ label, current, target, color }) {
-    const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+    const rawPct = target > 0 ? Math.round((current / target) * 100) : 0;
+    const pct = Math.min(100, rawPct);
+    const isOver = rawPct > 115;
     const colorMap = { rose: 'bg-rose-500', amber: 'bg-amber-500', yellow: 'bg-yellow-500' };
     const textMap = { rose: 'text-rose-300', amber: 'text-amber-300', yellow: 'text-yellow-300' };
 
     return (
         <div>
             <div className="flex justify-between text-[10px] mb-0.5">
-                <span className={textMap[color]}>{label}</span>
-                <span className="text-slate-400 font-mono">
+                <span className={isOver ? 'text-red-400' : textMap[color]}>
+                    {label}
+                    {isOver ? ' !' : ''}
+                </span>
+                <span className={`font-mono ${isOver ? 'text-red-400' : 'text-slate-400'}`}>
                     {current}g{target ? <span className="text-slate-600"> / {target}g</span> : null}
                 </span>
             </div>
             {target > 0 && (
                 <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div className={`h-full ${colorMap[color]} transition-all`} style={{ width: `${pct}%` }} />
+                    <div
+                        className={`h-full transition-all ${isOver ? 'bg-red-500' : colorMap[color]}`}
+                        style={{ width: `${pct}%` }}
+                    />
                 </div>
             )}
         </div>

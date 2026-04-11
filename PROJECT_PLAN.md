@@ -124,6 +124,35 @@ Toda la lógica que habla con Firestore vive en `src/services/`. Componentes y h
 - **Atribución ODbL** obligatoria.
   **Coste estimado**: 200-400 MB en Firestore (~$0.07/mes) + céntimos compute.
 
+### 2026-04-11 — Warnings nutricionales por comida: exceso de macros y distribución de proteína
+
+**Contexto**: Al planificar o registrar una comida, la app necesita advertir al usuario si se está desviando significativamente de sus targets o si la distribución de proteína no es óptima.
+
+**Implementación:**
+
+- **Warning en header de comida**: triángulo ámbar si kcal >15%, prot >20%, carbs >20%, grasa >30% sobre el target de esa comida.
+- **Barras de macros rojas**: cuando un macro supera >115% del target, la barra y el label cambian a rojo con indicador "!".
+- **Nota de proteína por toma**: si una comida supera 50g de proteína, se muestra nota informativa sobre distribución óptima.
+
+**Base científica para la distribución de proteína por toma:**
+
+- NO hay límite de absorción: el cuerpo absorbe toda la proteína ingerida, sin importar la cantidad (Schoenfeld & Aragon, 2018).
+- PERO la síntesis muscular (MPS) es óptima con **0.4-0.55 g/kg/comida** distribuida en 4+ comidas al día. Para un hombre de 75kg = **30-41g por toma**.
+- Cantidades mayores siguen siendo útiles (energía, saciedad, efecto térmico) pero con rendimiento decreciente para MPS.
+- Un estudio reciente (2024) demostró que 100g de proteína en una comida produce mayor MPS que 25g, pero la eficiencia por gramo es menor.
+
+**Base científica para carbohidratos y grasa:**
+
+- Carbohidratos: sin límite práctico de absorción por comida en reposo. Los 60-90g/h son límites durante ejercicio aeróbico (transportador SGLT1). En una comida normal los carbos se digieren durante horas.
+- Grasas: sin límite documentado de absorción por toma. La grasa ralentiza la digestión, extendiendo la ventana de absorción de todos los macros.
+
+**Fuentes:**
+
+- Schoenfeld & Aragon (2018) "How much protein can the body use in a single meal for muscle-building?" — 0.4 g/kg/meal × 4 meals mínimo. [PMC5828430](https://pmc.ncbi.nlm.nih.gov/articles/PMC5828430/)
+- MacroFactor (2024) "Is There a Max Amount of Protein Intake Per Meal?" — no hay límite de absorción, solo de eficiencia MPS. [macrofactor.com](https://macrofactor.com/max-protein-intake/)
+- Jäger et al. (2017) ISSN Position Stand: Protein and Exercise — 1.4-2.0 g/kg/d, distribución en 4+ comidas. [PMC5477153](https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/)
+- Jeukendrup (2014) "A Step Towards Personalized Sports Nutrition: Carbohydrate Intake During Exercise" — 60g/h single source, 90g/h multiple transportable carbs. [PMC4008807](https://pmc.ncbi.nlm.nih.gov/articles/PMC4008807/)
+
 ### 2026-04-11 — Macro targets por fase: valores basados en evidencia científica
 
 **Contexto**: El algoritmo de balanceo (Fase 5a+) necesita macro targets objetivos que varíen según la fase del usuario. Los valores deben ser editables (un nutricionista puede querer cambiarlos).
