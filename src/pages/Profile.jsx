@@ -391,6 +391,48 @@ function AccountSection({ authUser, signOut }) {
                 </div>
             )}
             <button
+                onClick={async () => {
+                    const isEn = i18n?.language === 'en';
+                    try {
+                        const uid = authUser.uid;
+                        const {
+                            collection: col,
+                            getDocs: gd,
+                            getDoc: gDoc,
+                            doc: d,
+                            query: q,
+                            orderBy: ob,
+                        } = await import('firebase/firestore');
+                        const { db } = await import('../firebase');
+
+                        const planDoc = await gDoc(d(db, 'users', uid, 'data', 'plan'));
+                        const foodsSnap = await gd(q(col(db, 'users', uid, 'customFoods'), ob('name')));
+                        const histSnap = await gd(col(db, 'users', uid, 'history'));
+
+                        const data = {
+                            exportedAt: new Date().toISOString(),
+                            plan: planDoc.exists() ? planDoc.data() : null,
+                            customFoods: foodsSnap.docs.map((d) => d.data()),
+                            history: histSnap.docs.map((d) => d.data()),
+                        };
+
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `traineat-export-${new Date().toISOString().split('T')[0]}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success(isEn ? 'Data exported' : 'Datos exportados');
+                    } catch (err) {
+                        toast.error(err.message || 'Error');
+                    }
+                }}
+                className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mt-2"
+            >
+                <Save size={14} /> {i18n?.language === 'en' ? 'Export my data' : 'Exportar mis datos'}
+            </button>
+            <button
                 onClick={signOut}
                 className="w-full py-2.5 bg-rose-950 hover:bg-rose-900 border border-rose-800/50 text-rose-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mt-2"
             >
