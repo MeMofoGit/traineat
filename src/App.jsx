@@ -10,6 +10,7 @@ import Auth from './pages/Auth';
 import About from './pages/About';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import SharedView from './pages/SharedView';
 import Layout from './components/Layout';
 import HealthDisclaimer from './components/HealthDisclaimer';
 import { useDisclaimer } from './hooks/useDisclaimer';
@@ -62,21 +63,19 @@ function AuthGate() {
         <>
             {!accepted && <HealthDisclaimer onAccept={accept} />}
             {accepted && !onboardingDone && <Onboarding onFinish={finishOnboarding} onSave={updateUser} />}
-            <Router>
-                <Routes>
-                    <Route path="/" element={<Layout />}>
-                        <Route index element={<Dashboard />} />
-                        <Route path="diet" element={<Diet />} />
-                        <Route path="fridge" element={<Fridge />} />
-                        <Route path="training" element={<Training />} />
-                        <Route path="profile" element={<Profile />} />
-                        <Route path="about" element={<About />} />
-                        <Route path="privacy" element={<Privacy />} />
-                        <Route path="terms" element={<Terms />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                    </Route>
-                </Routes>
-            </Router>
+            <Routes>
+                <Route path="/" element={<Layout />}>
+                    <Route index element={<Dashboard />} />
+                    <Route path="diet" element={<Diet />} />
+                    <Route path="fridge" element={<Fridge />} />
+                    <Route path="training" element={<Training />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="about" element={<About />} />
+                    <Route path="privacy" element={<Privacy />} />
+                    <Route path="terms" element={<Terms />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+            </Routes>
         </>
     );
 }
@@ -86,7 +85,12 @@ function App() {
         <Sentry.ErrorBoundary fallback={<FallbackUI />}>
             <PlanProvider>
                 <ToastProvider>
-                    <AuthGate />
+                    <Router>
+                        <Routes>
+                            <Route path="/shared/:tokenId" element={<SharedView />} />
+                            <Route path="/*" element={<AuthGate />} />
+                        </Routes>
+                    </Router>
                 </ToastProvider>
             </PlanProvider>
         </Sentry.ErrorBoundary>

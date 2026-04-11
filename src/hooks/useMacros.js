@@ -127,7 +127,7 @@ function calculateItemMacrosPure(item, customFoodsMap = {}) {
     };
 }
 
-function sumMacrosPure(items, customFoodsMap = {}) {
+export function sumMacrosPure(items, customFoodsMap = {}) {
     if (!items) return { protein: 0, carbs: 0, fat: 0, calories: 0 };
     return items.reduce(
         (acc, item) => {

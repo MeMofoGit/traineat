@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { linkWithCredential, linkWithPopup, EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth';
 import { useToast } from '../components/Toast';
+import { createShareToken, listShareTokens, revokeShareToken } from '../services/shareTokens';
+import { Share2, Copy, Trash2 as TrashIcon, ExternalLink as LinkIcon } from 'lucide-react';
 
 const GENDERS = [
     { value: 'male', label: 'Hombre' },
@@ -235,6 +237,9 @@ export default function Profile() {
             {/* Cuenta */}
             <AccountSection authUser={authUser} signOut={signOut} />
 
+            {/* Compartir con nutricionista */}
+            <ShareSection authUser={authUser} />
+
             {/* Idioma */}
             <LanguageSelector />
 
@@ -422,5 +427,117 @@ function LanguageSelector() {
                 ))}
             </div>
         </div>
+    );
+}
+
+function ShareSection({ authUser }) {
+    const { i18n } = useTranslation();
+    const isEn = i18n.language === 'en';
+    const toast = useToast();
+    const [tokens, setTokens] = useState([]);
+    const [creating, setCreating] = useState(false);
+
+    useEffect(() => {
+        if (authUser?.uid) loadTokens();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authUser?.uid]);
+
+    async function loadTokens() {
+        try {
+            const list = await listShareTokens(authUser.uid);
+            setTokens(list);
+        } catch {
+            /* ignore */
+        }
+    }
+
+    async function handleCreate() {
+        setCreating(true);
+        try {
+            const { tokenId } = await createShareToken(authUser.uid, 'read');
+            const url = `${window.location.origin}/shared/${tokenId}`;
+            await navigator.clipboard.writeText(url);
+            toast.success(isEn ? 'Link copied!' : 'Enlace copiado!');
+            loadTokens();
+        } catch (err) {
+            toast.error(err.message || 'Error');
+        } finally {
+            setCreating(false);
+        }
+    }
+
+    async function handleRevoke(tokenId) {
+        try {
+            await revokeShareToken(authUser.uid, tokenId);
+            setTokens((t) => t.filter((tk) => tk.tokenId !== tokenId));
+            toast.info(isEn ? 'Link revoked' : 'Enlace revocado');
+        } catch {
+            /* ignore */
+        }
+    }
+
+    async function handleCopy(tokenId) {
+        const url = `${window.location.origin}/shared/${tokenId}`;
+        await navigator.clipboard.writeText(url);
+        toast.success(isEn ? 'Link copied!' : 'Enlace copiado!');
+    }
+
+    return (
+        <Section title={isEn ? 'Share with nutritionist' : 'Compartir con nutricionista'} icon={<Share2 size={14} />}>
+            <p className="text-xs text-slate-400 mb-3">
+                {isEn
+                    ? 'Generate a temporary link (7 days) so a nutritionist can view your diet.'
+                    : 'Genera un enlace temporal (7 días) para que un nutricionista pueda ver tu dieta.'}
+            </p>
+
+            <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors mb-3"
+            >
+                <LinkIcon size={14} /> {creating ? '...' : isEn ? 'Generate link' : 'Generar enlace'}
+            </button>
+
+            {tokens.length > 0 && (
+                <div className="space-y-2">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">
+                        {isEn ? 'Active links' : 'Enlaces activos'}
+                    </div>
+                    {tokens.map((tk) => {
+                        const exp = new Date(tk.expiresAt);
+                        const daysLeft = Math.max(0, Math.ceil((exp - new Date()) / 86400000));
+                        return (
+                            <div
+                                key={tk.tokenId}
+                                className="flex items-center justify-between bg-slate-900 rounded-lg p-2.5"
+                            >
+                                <div className="min-w-0">
+                                    <div className="text-[10px] text-slate-400 font-mono truncate">
+                                        {tk.tokenId.slice(0, 8)}...
+                                    </div>
+                                    <div className="text-[9px] text-slate-600">
+                                        {daysLeft}d {isEn ? 'left' : 'restantes'}
+                                    </div>
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                    <button
+                                        onClick={() => handleCopy(tk.tokenId)}
+                                        className="p-1.5 text-slate-500 hover:text-blue-400"
+                                    >
+                                        <Copy size={12} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleRevoke(tk.tokenId)}
+                                        className="p-1.5 text-slate-500 hover:text-rose-400"
+                                    >
+                                        <TrashIcon size={12} />
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </Section>
     );
 }
