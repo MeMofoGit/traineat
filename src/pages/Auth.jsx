@@ -9,11 +9,13 @@ import {
 import { auth } from '../firebase';
 import { Dumbbell, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useToast } from '../components/Toast';
+import { useTranslation } from 'react-i18next';
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export default function Auth() {
+    const { t } = useTranslation();
     const [mode, setMode] = useState('login'); // 'login' | 'register' | 'reset'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -29,7 +31,7 @@ export default function Auth() {
         try {
             if (mode === 'register') {
                 await createUserWithEmailAndPassword(auth, email, password);
-                toast.success('Cuenta creada correctamente');
+                toast.success(t('auth.accountCreated'));
             } else {
                 await signInWithEmailAndPassword(auth, email, password);
             }
@@ -64,7 +66,7 @@ export default function Auth() {
         setLoading(true);
         try {
             await sendPasswordResetEmail(auth, email);
-            toast.success('Email de recuperación enviado. Revisa tu bandeja.');
+            toast.success(t('auth.resetSent'));
             setMode('login');
         } catch (err) {
             setError(getErrorMessage(err.code));
@@ -79,8 +81,8 @@ export default function Auth() {
                 <div className="w-full max-w-sm space-y-6">
                     <header className="text-center">
                         <Dumbbell size={40} className="text-blue-500 mx-auto mb-3" />
-                        <h1 className="text-xl font-bold text-white">Recuperar contraseña</h1>
-                        <p className="text-sm text-slate-400 mt-1">Te enviaremos un email para resetearla</p>
+                        <h1 className="text-xl font-bold text-white">{t('auth.resetTitle')}</h1>
+                        <p className="text-sm text-slate-400 mt-1">{t('auth.resetDesc')}</p>
                     </header>
                     <form onSubmit={handleReset} className="space-y-4">
                         <InputField
@@ -96,14 +98,14 @@ export default function Auth() {
                             disabled={loading}
                             className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                            {loading && <Loader2 size={16} className="animate-spin" />} Enviar email
+                            {loading && <Loader2 size={16} className="animate-spin" />} {t('auth.sendEmail')}
                         </button>
                     </form>
                     <button
                         onClick={() => setMode('login')}
                         className="w-full text-center text-sm text-slate-400 hover:text-white"
                     >
-                        Volver al login
+                        {t('auth.backToLogin')}
                     </button>
                 </div>
             </div>
@@ -119,7 +121,7 @@ export default function Auth() {
                         TrainEat
                     </h1>
                     <p className="text-sm text-slate-400 mt-1">
-                        {mode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
+                        {mode === 'login' ? t('auth.login') : t('auth.register')}
                     </p>
                 </header>
 
@@ -147,12 +149,12 @@ export default function Auth() {
                             d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.1-5.5c-2.2 1.5-5 2.3-8.8 2.3-6.1 0-11.2-4-13.1-9.6l-8 6.2C6.7 42.4 14.6 48 24 48z"
                         />
                     </svg>
-                    Continuar con Google
+                    {t('auth.googleLogin')}
                 </button>
 
                 <div className="flex items-center gap-3">
                     <div className="flex-1 h-px bg-slate-800" />
-                    <span className="text-xs text-slate-500">o con email</span>
+                    <span className="text-xs text-slate-500">{t('auth.orEmail')}</span>
                     <div className="flex-1 h-px bg-slate-800" />
                 </div>
 
@@ -190,7 +192,7 @@ export default function Auth() {
                         className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         {loading && <Loader2 size={16} className="animate-spin" />}
-                        {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+                        {mode === 'login' ? t('auth.login') : t('auth.register')}
                     </button>
                 </form>
 
@@ -201,10 +203,10 @@ export default function Auth() {
                                 onClick={() => setMode('reset')}
                                 className="text-xs text-slate-500 hover:text-blue-400"
                             >
-                                ¿Olvidaste tu contraseña?
+                                {t('auth.forgotPassword')}
                             </button>
                             <p className="text-sm text-slate-400">
-                                ¿No tienes cuenta?{' '}
+                                {t('auth.noAccount')}{' '}
                                 <button
                                     onClick={() => {
                                         setMode('register');
@@ -212,13 +214,13 @@ export default function Auth() {
                                     }}
                                     className="text-blue-400 font-bold hover:underline"
                                 >
-                                    Regístrate
+                                    {t('auth.signUp')}
                                 </button>
                             </p>
                         </>
                     ) : (
                         <p className="text-sm text-slate-400">
-                            ¿Ya tienes cuenta?{' '}
+                            {t('auth.hasAccount')}{' '}
                             <button
                                 onClick={() => {
                                     setMode('login');
@@ -226,7 +228,7 @@ export default function Auth() {
                                 }}
                                 className="text-blue-400 font-bold hover:underline"
                             >
-                                Inicia sesión
+                                {t('auth.signIn')}
                             </button>
                         </p>
                     )}

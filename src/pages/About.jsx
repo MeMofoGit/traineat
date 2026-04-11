@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, AlertTriangle, Shield, FileText, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function About() {
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     return (
         <div className="p-6 space-y-6 pb-24">
@@ -11,7 +13,7 @@ export default function About() {
                 <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400">
                     <ArrowLeft size={20} />
                 </button>
-                <h1 className="text-xl font-bold text-white">Acerca de TrainEat</h1>
+                <h1 className="text-xl font-bold text-white">{t('about.title')}</h1>
             </header>
 
             {/* App info */}
@@ -19,7 +21,7 @@ export default function About() {
                 <div className="text-3xl font-black bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
                     TrainEat
                 </div>
-                <p className="text-sm text-slate-400">Nutrición y entrenamiento personalizado</p>
+                <p className="text-sm text-slate-400">{t('about.subtitle')}</p>
                 <p className="text-xs text-slate-500 font-mono">v1.0.0</p>
             </section>
 
@@ -27,24 +29,20 @@ export default function About() {
             <section className="bg-amber-950/20 border border-amber-800/40 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2 text-amber-400">
                     <AlertTriangle size={18} />
-                    <h2 className="text-sm font-bold">Aviso de salud</h2>
+                    <h2 className="text-sm font-bold">{t('about.health')}</h2>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                    Esta aplicación no proporciona consejo médico, diagnóstico ni tratamiento. Los cálculos de calorías
-                    y macronutrientes son orientativos. Consulta a un profesional sanitario antes de cambios
-                    significativos en tu dieta o ejercicio.
-                </p>
+                <p className="text-xs text-slate-300 leading-relaxed">{t('about.healthText')}</p>
             </section>
 
             {/* Legal links */}
             <section className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-5 space-y-3">
                 <div className="flex items-center gap-2 text-slate-300">
                     <Shield size={18} />
-                    <h2 className="text-sm font-bold">Legal</h2>
+                    <h2 className="text-sm font-bold">{t('about.legal')}</h2>
                 </div>
                 <div className="space-y-2">
-                    <LegalLink icon={<FileText size={14} />} label="Política de Privacidad" note="Próximamente" />
-                    <LegalLink icon={<FileText size={14} />} label="Términos de Servicio" note="Próximamente" />
+                    <LegalLink icon={<FileText size={14} />} label={t('about.privacy')} note={t('about.comingSoon')} />
+                    <LegalLink icon={<FileText size={14} />} label={t('about.terms')} note={t('about.comingSoon')} />
                 </div>
             </section>
 
@@ -52,7 +50,7 @@ export default function About() {
             <section className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-5 space-y-3">
                 <div className="flex items-center gap-2 text-slate-300">
                     <Heart size={18} />
-                    <h2 className="text-sm font-bold">Créditos</h2>
+                    <h2 className="text-sm font-bold">{t('about.credits')}</h2>
                 </div>
                 <div className="text-xs text-slate-400 space-y-2">
                     <p>
