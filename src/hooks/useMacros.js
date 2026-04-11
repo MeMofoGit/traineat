@@ -199,21 +199,30 @@ export function useMacros(isTrainingDay = true) {
 
     const targets = getTargetMacros(dailyCalories, stats.weight, isTrainingDay, stats.goal);
 
-    // Calculate Consumed
+    // Calculate Consumed — usa datos reales del diary si existen
+    const todayKey = new Date().toISOString().split('T')[0];
+    const todayLog = plan.dailyLog?.[todayKey];
+
     const dailyConsumed = useMemo(() => {
         return plan.schedule.default
             .filter((slot) => slot.type === 'meal')
             .reduce(
                 (acc, slot) => {
-                    const meal = plan.meals[slot.id];
-                    if (!meal) return acc;
+                    // Si hay log de comida real, usar esos items
+                    const log = todayLog?.[slot.id];
+                    let items;
+                    if (log?.status === 'modified' && log.items) {
+                        items = log.items;
+                    } else {
+                        const meal = plan.meals[slot.id];
+                        if (!meal) return acc;
+                        const activeIndex = meal.selectedOptionIndex || 0;
+                        const option = meal.options?.[activeIndex];
+                        items = option?.items;
+                    }
 
-                    // Get selected option
-                    const activeIndex = meal.selectedOptionIndex || 0;
-                    const option = meal.options?.[activeIndex];
-
-                    if (option && option.items) {
-                        const mealMacros = sumMacrosPure(option.items, customFoodsMap);
+                    if (items) {
+                        const mealMacros = sumMacrosPure(items, customFoodsMap);
                         return {
                             calories: acc.calories + mealMacros.calories,
                             protein: acc.protein + mealMacros.protein,
@@ -225,7 +234,7 @@ export function useMacros(isTrainingDay = true) {
                 },
                 { calories: 0, protein: 0, carbs: 0, fat: 0 }
             );
-    }, [plan.schedule, plan.meals, customFoodsMap]);
+    }, [plan.schedule, plan.meals, todayLog, customFoodsMap]);
 
     return {
         targets,

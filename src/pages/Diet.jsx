@@ -21,6 +21,9 @@ import {
     Wand2,
     ArrowRightLeft,
     Clock,
+    CheckCircle2,
+    Undo2,
+    UtensilsCrossed,
 } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
@@ -29,11 +32,19 @@ import { balanceMeal } from '../utils/mealBalancer';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
 
-function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = false, mealTarget }) {
+function StructuredMealEditor({
+    initialItems,
+    onSave,
+    onCancel,
+    startAdding = false,
+    mealTarget,
+    hideSuggestions = false,
+}) {
     const { customFoods } = usePlan();
     const { calculateItemMacros } = useMacros();
     const entitlements = useEntitlements();
     const canCreateCustom = entitlements.customFoods;
+    const editorRef = React.useRef(null);
 
     // If no structured items, try to parse or start empty
     const [items, setItems] = useState(initialItems || []);
@@ -143,7 +154,7 @@ function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = fa
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" ref={editorRef}>
             <div className="space-y-2">
                 {items.map((item, i) => {
                     const catInfo =
@@ -291,15 +302,18 @@ function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = fa
                         <Plus size={14} /> Añadir Alimento
                     </button>
 
-                    {/* Botón "Rellenar con Mi Nevera" (Fase 5a) — solo si hay items */}
-                    {items.length > 0 && entitlements.smartSuggest && (customFoods || []).length > 0 && (
-                        <button
-                            onClick={handleSuggestSubstitutions}
-                            className="w-full py-2 bg-cyan-900/20 border border-cyan-800/50 text-cyan-300 hover:bg-cyan-900/40 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
-                        >
-                            <Refrigerator size={13} /> Rellenar con Mi Nevera
-                        </button>
-                    )}
+                    {/* Botón "Rellenar con Mi Nevera" (Fase 5a) — solo si hay items y no estamos en modo diary */}
+                    {!hideSuggestions &&
+                        items.length > 0 &&
+                        entitlements.smartSuggest &&
+                        (customFoods || []).length > 0 && (
+                            <button
+                                onClick={handleSuggestSubstitutions}
+                                className="w-full py-2 bg-cyan-900/20 border border-cyan-800/50 text-cyan-300 hover:bg-cyan-900/40 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
+                            >
+                                <Refrigerator size={13} /> Rellenar con Mi Nevera
+                            </button>
+                        )}
                 </div>
             )}
 
@@ -339,11 +353,14 @@ function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = fa
             {/* Modal Mi Nevera (crear producto desde el editor) */}
             <CustomFoodModal
                 isOpen={fridgeModalOpen}
-                onClose={() => setFridgeModalOpen(false)}
+                onClose={() => {
+                    setFridgeModalOpen(false);
+                    setTimeout(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                }}
                 mode="create"
                 onSaved={(food) => {
                     handleCustomFoodCreated(food);
-                    setIsAdding(true); // Asegurar que el editor de item está abierto
+                    setIsAdding(true);
                 }}
             />
         </div>
@@ -351,9 +368,24 @@ function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = fa
 }
 
 function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlot, onRemoveSlot, mealLabels }) {
-    const { updateMealOption, addMealOption, deleteMealOption, setSelectedOption } = usePlan();
+    const {
+        updateMealOption,
+        addMealOption,
+        deleteMealOption,
+        setSelectedOption,
+        confirmMeal,
+        logActualMeal,
+        clearMealLog,
+        getMealLog,
+    } = usePlan();
     const [isEditing, setIsEditing] = useState(false);
+    const [editingActual, setEditingActual] = useState(false);
     const { sumMacros } = useMacros();
+
+    // Food diary: estado de esta comida hoy
+    const mealLog = getMealLog(slot.id);
+    const isConfirmed = mealLog?.status === 'confirmed';
+    const isModified = mealLog?.status === 'modified';
 
     // Get Active Option
     const activeIndex = meal.selectedOptionIndex || 0;
@@ -376,15 +408,25 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
     };
 
     // Calculate macros for this meal if structured
-    const macros = activeOption.items && activeOption.items.length > 0 ? sumMacros(activeOption.items) : null;
+    // Si hay log modificado, mostrar macros reales; si no, las del plan
+    const effectiveItems = isModified && mealLog?.items ? mealLog.items : activeOption.items;
+    const macros = effectiveItems && effectiveItems.length > 0 ? sumMacros(effectiveItems) : null;
 
     return (
         <article className="bg-slate-800/50 rounded-2xl overflow-hidden border border-slate-700/50 hover:border-blue-500/30 transition-all group">
             {/* Header: Time & Title */}
             <div className="bg-slate-900/50 p-4 flex justify-between items-center border-b border-slate-700/50">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="bg-blue-900/30 p-2 rounded-lg text-blue-400 shrink-0">
-                        <ChefHat size={18} />
+                    <div
+                        className={`p-2 rounded-lg shrink-0 ${isConfirmed ? 'bg-emerald-900/30 text-emerald-400' : isModified ? 'bg-amber-900/30 text-amber-400' : 'bg-blue-900/30 text-blue-400'}`}
+                    >
+                        {isConfirmed ? (
+                            <CheckCircle2 size={18} />
+                        ) : isModified ? (
+                            <UtensilsCrossed size={18} />
+                        ) : (
+                            <ChefHat size={18} />
+                        )}
                     </div>
                     {editingSlot ? (
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -606,6 +648,82 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                                 </span>
                             )}
                         </div>
+
+                        {/* Food Diary — confirmar / editar lo que comí */}
+                        {activeOption.items?.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-slate-700/30">
+                                {isModified && mealLog.items ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 text-xs text-amber-400">
+                                            <UtensilsCrossed size={12} />
+                                            <span className="font-bold">Comida registrada (diferente al plan)</span>
+                                            <button
+                                                onClick={() => clearMealLog(slot.id)}
+                                                className="ml-auto text-slate-500 hover:text-slate-300"
+                                            >
+                                                <Undo2 size={12} />
+                                            </button>
+                                        </div>
+                                        <div className="bg-amber-950/20 rounded-lg p-2 text-[10px] text-slate-400">
+                                            {mealLog.items.map((it, j) => (
+                                                <span key={j}>
+                                                    {it.name} {it.quantity}
+                                                    {it.unit}
+                                                    {j < mealLog.items.length - 1 ? ' · ' : ''}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : isConfirmed ? (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-xs text-emerald-400">
+                                            <CheckCircle2 size={14} />
+                                            <span className="font-bold">Comido</span>
+                                        </div>
+                                        <button
+                                            onClick={() => clearMealLog(slot.id)}
+                                            className="text-[10px] text-slate-500 hover:text-slate-300"
+                                        >
+                                            Deshacer
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => confirmMeal(slot.id)}
+                                            className="flex-1 py-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/30 text-emerald-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                                        >
+                                            <CheckCircle2 size={12} /> Comí esto
+                                        </button>
+                                        <button
+                                            onClick={() => setEditingActual(true)}
+                                            className="flex-1 py-1.5 bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/30 text-amber-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                                        >
+                                            <UtensilsCrossed size={12} /> Comí otra cosa
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Editor de comida real (food diary) */}
+                        {editingActual && (
+                            <div className="mt-3 pt-3 border-t border-amber-700/30">
+                                <div className="text-xs text-amber-400 font-bold mb-2 flex items-center gap-1.5">
+                                    <UtensilsCrossed size={12} /> Registrar lo que comiste
+                                </div>
+                                <StructuredMealEditor
+                                    initialItems={activeOption.items || []}
+                                    onSave={(items) => {
+                                        logActualMeal(slot.id, items);
+                                        setEditingActual(false);
+                                    }}
+                                    onCancel={() => setEditingActual(false)}
+                                    startAdding
+                                    hideSuggestions
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

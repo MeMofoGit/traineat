@@ -65,6 +65,9 @@ export function PlanProvider({ children }) {
             parsed.trainingTime = trainingSlot?.time || '13:00';
         }
 
+        // Migration: dailyLog (food diary)
+        if (!parsed.dailyLog) parsed.dailyLog = {};
+
         // Migration: User profile fields used by useMacros / AI context
         parsed.user = {
             ...PLAN_DATA.user,
@@ -419,6 +422,55 @@ export function PlanProvider({ children }) {
             }
             return { ...prev, schedule: { ...prev.schedule, default: newSchedule } };
         });
+    };
+
+    // === FOOD DIARY ===
+
+    const getTodayKey = () => new Date().toISOString().split('T')[0];
+
+    const confirmMeal = (mealId) => {
+        const today = getTodayKey();
+        setPlanData((prev) => ({
+            ...prev,
+            dailyLog: {
+                ...prev.dailyLog,
+                [today]: {
+                    ...(prev.dailyLog?.[today] || {}),
+                    [mealId]: { status: 'confirmed', timestamp: Date.now() },
+                },
+            },
+        }));
+    };
+
+    const logActualMeal = (mealId, items) => {
+        const today = getTodayKey();
+        setPlanData((prev) => ({
+            ...prev,
+            dailyLog: {
+                ...prev.dailyLog,
+                [today]: {
+                    ...(prev.dailyLog?.[today] || {}),
+                    [mealId]: { status: 'modified', items, timestamp: Date.now() },
+                },
+            },
+        }));
+    };
+
+    const clearMealLog = (mealId) => {
+        const today = getTodayKey();
+        setPlanData((prev) => {
+            const dayLog = { ...(prev.dailyLog?.[today] || {}) };
+            delete dayLog[mealId];
+            return {
+                ...prev,
+                dailyLog: { ...prev.dailyLog, [today]: dayLog },
+            };
+        });
+    };
+
+    const getMealLog = (mealId, date) => {
+        const key = date || getTodayKey();
+        return planData.dailyLog?.[key]?.[mealId] || null;
     };
 
     const updateUser = (newFields) => {
@@ -887,6 +939,10 @@ export function PlanProvider({ children }) {
                 removeMealSlot,
                 updateMealSlot,
                 mealLabels: MEAL_LABELS,
+                confirmMeal,
+                logActualMeal,
+                clearMealLog,
+                getMealLog,
                 updateUser,
                 updateTrainingTime,
                 setActivePhaseId,
