@@ -18,8 +18,10 @@ import { useNavigate } from 'react-router-dom';
 import { useSchedule } from '../hooks/useSchedule';
 import { usePlan } from '../hooks/usePlan';
 import { assignMealRoles, TIMING_ROLES } from '../utils/nutrientTiming';
+import { useTranslation } from 'react-i18next';
 
 export default function Dashboard() {
+    const { t } = useTranslation();
     const { now, currentPhase, nextEvent, activeTraining } = useSchedule();
     const { plan, setActivePhaseId } = usePlan();
     const mealRoles = useMemo(
@@ -35,7 +37,7 @@ export default function Dashboard() {
             <header className="flex justify-between items-end">
                 <div>
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
-                        Hola, {plan.user?.name || 'Atleta'}
+                        {t('dashboard.greeting', { name: plan.user?.name || 'Atleta' })}
                     </h1>
                     <p className="text-slate-400 text-sm mt-1">
                         {currentPhase.name}
@@ -43,7 +45,12 @@ export default function Dashboard() {
                             (() => {
                                 const daysLeft = Math.ceil((new Date(currentPhase.dates.end) - now) / 86400000);
                                 if (daysLeft > 0 && daysLeft <= 90)
-                                    return <span className="text-slate-500"> · {daysLeft}d restantes</span>;
+                                    return (
+                                        <span className="text-slate-500">
+                                            {' '}
+                                            · {t('dashboard.daysLeft', { count: daysLeft })}
+                                        </span>
+                                    );
                                 return null;
                             })()}
                     </p>
@@ -73,7 +80,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-3 mb-4 text-blue-400">
                             <Clock size={20} />
                             <h2 className="font-semibold uppercase tracking-wide text-sm">
-                                Próxima Comida: <span className="text-white">{nextEvent.time}</span>
+                                {t('dashboard.nextMeal')}: <span className="text-white">{nextEvent.time}</span>
                             </h2>
                         </div>
 
@@ -111,7 +118,7 @@ export default function Dashboard() {
                                                     </span>
                                                 </li>
                                             ))}
-                                            {items.length > 2 && <li>... y más</li>}
+                                            {items.length > 2 && <li>...</li>}
                                         </ul>
                                     );
                                 })()}
@@ -122,7 +129,7 @@ export default function Dashboard() {
                             onClick={() => navigate('/diet')}
                             className="w-full py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-semibold rounded-xl shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
                         >
-                            Ver Dieta <ArrowRight size={18} />
+                            {t('dashboard.viewDiet')} <ArrowRight size={18} />
                         </button>
                     </>
                 ) : (
@@ -138,7 +145,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center gap-3 mb-4 text-emerald-400">
                     <Dumbbell size={20} />
-                    <h2 className="font-semibold uppercase tracking-wide text-sm">Entrenamiento de Hoy</h2>
+                    <h2 className="font-semibold uppercase tracking-wide text-sm">{t('dashboard.todayTraining')}</h2>
                 </div>
 
                 {activeTraining.routine ? (
@@ -160,13 +167,13 @@ export default function Dashboard() {
                             onClick={() => navigate('/training')}
                             className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all text-white font-semibold rounded-xl shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2"
                         >
-                            Ir a Entrenar <ArrowRight size={18} />
+                            {t('dashboard.startSession')} <ArrowRight size={18} />
                         </button>
                     </>
                 ) : (
                     <div className="text-center py-6">
-                        <h3 className="text-xl font-bold text-slate-300 mb-2">Día de Descanso</h3>
-                        <p className="text-slate-500 text-sm">Recupérate para mañana.</p>
+                        <h3 className="text-xl font-bold text-slate-300 mb-2">{t('dashboard.restDay')}</h3>
+                        <p className="text-slate-500 text-sm"></p>
                     </div>
                 )}
             </section>

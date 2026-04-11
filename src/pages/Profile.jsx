@@ -43,6 +43,7 @@ const GOAL_TYPES = [
 ];
 
 export default function Profile() {
+    const { t } = useTranslation();
     const { plan, updateUser, authUser, signOut } = usePlan();
     const user = plan.user || {};
 
@@ -104,14 +105,14 @@ export default function Profile() {
                     <User size={24} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Mis Datos</h1>
-                    <p className="text-xs text-slate-400">Información personal y objetivos</p>
+                    <h1 className="text-2xl font-bold text-white">{t('profile.title')}</h1>
+                    <p className="text-xs text-slate-400"></p>
                 </div>
             </header>
 
             {/* Identidad */}
-            <Section title="Identidad">
-                <Field label="Nombre">
+            <Section title={t('profile.identity')}>
+                <Field label={t('profile.name')}>
                     <input
                         type="text"
                         value={form.name}
@@ -120,7 +121,7 @@ export default function Profile() {
                     />
                 </Field>
 
-                <Field label="Fecha de nacimiento" icon={<Cake size={14} />}>
+                <Field label={t('profile.birthday')} icon={<Cake size={14} />}>
                     <input
                         type="date"
                         value={form.birthday}
@@ -130,7 +131,7 @@ export default function Profile() {
                     {derivedAge != null && <p className="text-xs text-slate-500 mt-1 font-mono">{derivedAge} años</p>}
                 </Field>
 
-                <Field label="Sexo">
+                <Field label={t('profile.gender')}>
                     <div className="grid grid-cols-2 gap-2">
                         {GENDERS.map((g) => (
                             <button
@@ -150,8 +151,8 @@ export default function Profile() {
             </Section>
 
             {/* Físico */}
-            <Section title="Físico">
-                <Field label="Altura (cm)" icon={<Ruler size={14} />}>
+            <Section title={t('profile.physical')}>
+                <Field label={t('profile.height')} icon={<Ruler size={14} />}>
                     <input
                         type="number"
                         value={form.height}
@@ -162,7 +163,7 @@ export default function Profile() {
             </Section>
 
             {/* Actividad */}
-            <Section title="Nivel de actividad" icon={<Activity size={14} />}>
+            <Section title={t('profile.activity')} icon={<Activity size={14} />}>
                 <div className="space-y-2">
                     {ACTIVITY_LEVELS.map((a) => (
                         <button
@@ -182,7 +183,7 @@ export default function Profile() {
             </Section>
 
             {/* Objetivo */}
-            <Section title="Objetivo" icon={<Target size={14} />}>
+            <Section title={t('profile.goal')} icon={<Target size={14} />}>
                 <div className="grid grid-cols-2 gap-2">
                     {GOAL_TYPES.map((g) => (
                         <button
@@ -200,7 +201,7 @@ export default function Profile() {
                     ))}
                 </div>
 
-                <Field label="Descripción libre">
+                <Field label={t('profile.goalDesc')}>
                     <textarea
                         rows="2"
                         value={form.goal}
@@ -210,7 +211,7 @@ export default function Profile() {
                     />
                 </Field>
 
-                <Field label="Fecha límite" icon={<Flag size={14} />}>
+                <Field label={t('profile.deadline')} icon={<Flag size={14} />}>
                     <input
                         type="date"
                         value={form.deadline}
@@ -228,7 +229,7 @@ export default function Profile() {
                 }`}
             >
                 <Save size={16} />
-                {savedFlash ? '¡Guardado!' : 'Guardar Cambios'}
+                {savedFlash ? t('profile.saved') : t('common.save')}
             </button>
 
             {/* Cuenta */}
