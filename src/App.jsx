@@ -7,7 +7,10 @@ import Training from './pages/Training';
 import Profile from './pages/Profile';
 import Fridge from './pages/Fridge';
 import Auth from './pages/Auth';
+import About from './pages/About';
 import Layout from './components/Layout';
+import HealthDisclaimer from './components/HealthDisclaimer';
+import { useDisclaimer } from './hooks/useDisclaimer';
 
 import { PlanProvider, usePlan } from './hooks/usePlan';
 import { ToastProvider } from './components/Toast';
@@ -35,6 +38,7 @@ function FallbackUI() {
 
 function AuthGate() {
     const { authUser, authReady } = usePlan();
+    const { accepted, accept } = useDisclaimer();
 
     if (!authReady) {
         return (
@@ -49,18 +53,22 @@ function AuthGate() {
     }
 
     return (
-        <Router>
-            <Routes>
-                <Route path="/" element={<Layout />}>
-                    <Route index element={<Dashboard />} />
-                    <Route path="diet" element={<Diet />} />
-                    <Route path="fridge" element={<Fridge />} />
-                    <Route path="training" element={<Training />} />
-                    <Route path="profile" element={<Profile />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Route>
-            </Routes>
-        </Router>
+        <>
+            {!accepted && <HealthDisclaimer onAccept={accept} />}
+            <Router>
+                <Routes>
+                    <Route path="/" element={<Layout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="diet" element={<Diet />} />
+                        <Route path="fridge" element={<Fridge />} />
+                        <Route path="training" element={<Training />} />
+                        <Route path="profile" element={<Profile />} />
+                        <Route path="about" element={<About />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Route>
+                </Routes>
+            </Router>
+        </>
     );
 }
 

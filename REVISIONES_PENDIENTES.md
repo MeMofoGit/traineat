@@ -39,8 +39,24 @@ Al elegir "Entrenar hoy" para un workout pendiente, el workout planificado para 
 
 ### Pendiente de análisis
 
-- ¿Limitar a 1 banner máximo y no mostrar más tras elegir "Entrenar hoy"?
+- ~~¿Limitar a 1 banner máximo y no mostrar más tras elegir "Entrenar hoy"?~~ **RESUELTO 2026-04-10** — "Entrenar hoy" marca el día actual como `displaced`.
 - ¿Ofrecer "reagrupar semana" si se acumulan 2+ pendientes?
 - ¿Aceptar la cascada como comportamiento natural (el usuario siempre puede "Saltar")?
+
+---
+
+## Iconos PWA en formato PNG — pendiente del usuario
+
+**Reportado**: 2026-04-11
+**Prioridad**: MEDIA (afecta instalación en iOS/Safari)
+
+Los iconos actuales del manifest son SVG (`icon-192.svg`, `icon-512.svg`). Chrome los acepta pero **Safari/iOS requiere PNG** para apple-touch-icon y para que la instalación se vea correcta.
+
+### Acción necesaria
+
+- [ ] Generar `icon-192.png` (192x192) y `icon-512.png` (512x512) desde los SVG existentes (usar svgtopng.com o similar).
+- [ ] Colocarlos en `public/`.
+- [ ] Actualizar `vite.config.js` manifest icons para apuntar a los PNG (añadir entradas `image/png` junto a las SVG existentes).
+- [ ] Actualizar `index.html` apple-touch-icon para apuntar al PNG.
 
 ---

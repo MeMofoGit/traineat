@@ -13,13 +13,15 @@ export default defineConfig({
             manifest: {
                 name: 'TrainEat — Nutrición y Entrenamiento',
                 short_name: 'TrainEat',
-                description: 'Tu plan de nutrición y entrenamiento personalizado',
+                description: 'Tu plan de nutrición y entrenamiento personalizado. Macros, rutinas, timers y seguimiento de peso.',
                 theme_color: '#0f172a',
                 background_color: '#020617',
                 display: 'standalone',
                 orientation: 'portrait',
                 start_url: '/',
                 scope: '/',
+                lang: 'es',
+                categories: ['health', 'fitness', 'food'],
                 icons: [
                     {
                         src: '/icon-192.svg',
@@ -38,17 +40,40 @@ export default defineConfig({
                         purpose: 'maskable',
                     },
                 ],
+                shortcuts: [
+                    {
+                        name: 'Mi Dieta',
+                        short_name: 'Dieta',
+                        url: '/diet',
+                        icons: [{ src: '/icon-192.svg', sizes: '192x192' }],
+                    },
+                    {
+                        name: 'Entrenamiento',
+                        short_name: 'Entreno',
+                        url: '/training',
+                        icons: [{ src: '/icon-192.svg', sizes: '192x192' }],
+                    },
+                ],
             },
             workbox: {
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,woff2}'],
+                navigateFallback: '/index.html',
+                navigateFallbackDenylist: [/^\/api/],
                 runtimeCaching: [
                     {
-                        // Cache de la API de Firebase (Firestore REST)
                         urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'firestore-cache',
                             expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 },
+                        },
+                    },
+                    {
+                        urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'google-fonts',
+                            expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
                         },
                     },
                 ],

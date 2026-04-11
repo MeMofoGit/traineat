@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { usePlan } from '../hooks/usePlan';
 import { calculateAge } from '../hooks/useMacros';
-import { User, Save, Cake, Ruler, Activity, Target, Flag, LogOut, Mail, Shield, Link2, Loader2 } from 'lucide-react';
+import {
+    User,
+    Save,
+    Cake,
+    Ruler,
+    Activity,
+    Target,
+    Flag,
+    LogOut,
+    Mail,
+    Shield,
+    Link2,
+    Loader2,
+    Info,
+} from 'lucide-react';
 import { linkWithCredential, linkWithPopup, EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth';
 import { useToast } from '../components/Toast';
 
@@ -216,6 +231,17 @@ export default function Profile() {
 
             {/* Cuenta */}
             <AccountSection authUser={authUser} signOut={signOut} />
+
+            {/* Acerca de */}
+            <Link
+                to="/about"
+                className="flex items-center justify-between p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-colors"
+            >
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Info size={16} /> Acerca de TrainEat
+                </div>
+                <span className="text-xs text-slate-600">v1.0.0</span>
+            </Link>
         </div>
     );
 }
