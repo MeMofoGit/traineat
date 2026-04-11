@@ -525,12 +525,30 @@ function LanguageSelector() {
     );
 }
 
+function copyToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    }
+    return fallbackCopy(text);
+}
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+}
+
 function ShareSection({ authUser }) {
     const { i18n } = useTranslation();
     const isEn = i18n.language === 'en';
     const toast = useToast();
     const [tokens, setTokens] = useState([]);
     const [creating, setCreating] = useState(false);
+    const [permission, setPermission] = useState('read');
 
     useEffect(() => {
         if (authUser?.uid) loadTokens();
@@ -549,10 +567,10 @@ function ShareSection({ authUser }) {
     async function handleCreate() {
         setCreating(true);
         try {
-            const { tokenId } = await createShareToken(authUser.uid, 'read');
+            const { tokenId } = await createShareToken(authUser.uid, permission);
             const url = `${window.location.origin}/shared/${tokenId}`;
-            await navigator.clipboard.writeText(url);
-            toast.success(isEn ? 'Link copied!' : 'Enlace copiado!');
+            copyToClipboard(url);
+            toast.success(isEn ? 'Link copied!' : '¡Enlace copiado!');
             loadTokens();
         } catch (err) {
             toast.error(err.message || 'Error');
@@ -571,19 +589,35 @@ function ShareSection({ authUser }) {
         }
     }
 
-    async function handleCopy(tokenId) {
+    function handleCopy(tokenId) {
         const url = `${window.location.origin}/shared/${tokenId}`;
-        await navigator.clipboard.writeText(url);
-        toast.success(isEn ? 'Link copied!' : 'Enlace copiado!');
+        copyToClipboard(url);
+        toast.success(isEn ? 'Link copied!' : '¡Enlace copiado!');
     }
 
     return (
         <Section title={isEn ? 'Share with nutritionist' : 'Compartir con nutricionista'} icon={<Share2 size={14} />}>
             <p className="text-xs text-slate-400 mb-3">
                 {isEn
-                    ? 'Generate a temporary link (7 days) so a nutritionist can view your diet.'
-                    : 'Genera un enlace temporal (7 días) para que un nutricionista pueda ver tu dieta.'}
+                    ? 'Generate a temporary link (7 days) so a nutritionist can view or edit your diet.'
+                    : 'Genera un enlace temporal (7 días) para que un nutricionista pueda ver o editar tu dieta.'}
             </p>
+
+            {/* Permission selector */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+                <button
+                    onClick={() => setPermission('read')}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${permission === 'read' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'}`}
+                >
+                    {isEn ? '👁 View only' : '👁 Solo ver'}
+                </button>
+                <button
+                    onClick={() => setPermission('readwrite')}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${permission === 'readwrite' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'}`}
+                >
+                    {isEn ? '✏️ Can edit' : '✏️ Puede editar'}
+                </button>
+            </div>
 
             <button
                 onClick={handleCreate}
@@ -601,6 +635,14 @@ function ShareSection({ authUser }) {
                     {tokens.map((tk) => {
                         const exp = new Date(tk.expiresAt);
                         const daysLeft = Math.max(0, Math.ceil((exp - new Date()) / 86400000));
+                        const perm =
+                            tk.permissions === 'readwrite'
+                                ? isEn
+                                    ? '✏️ Edit'
+                                    : '✏️ Editar'
+                                : isEn
+                                  ? '👁 View'
+                                  : '👁 Ver';
                         return (
                             <div
                                 key={tk.tokenId}
@@ -611,7 +653,7 @@ function ShareSection({ authUser }) {
                                         {tk.tokenId.slice(0, 8)}...
                                     </div>
                                     <div className="text-[9px] text-slate-600">
-                                        {daysLeft}d {isEn ? 'left' : 'restantes'}
+                                        {perm} · {daysLeft}d {isEn ? 'left' : 'restantes'}
                                     </div>
                                 </div>
                                 <div className="flex gap-1 shrink-0">
