@@ -283,6 +283,7 @@ function Field({ label, icon, children }) {
 
 function AccountSection({ authUser, signOut }) {
     const toast = useToast();
+    const { i18n } = useTranslation();
     const [linkEmail, setLinkEmail] = useState('');
     const [linkPw, setLinkPw] = useState('');
     const [linking, setLinking] = useState(false);
@@ -394,6 +395,58 @@ function AccountSection({ authUser, signOut }) {
                 className="w-full py-2.5 bg-rose-950 hover:bg-rose-900 border border-rose-800/50 text-rose-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mt-2"
             >
                 <LogOut size={14} /> Cerrar sesión
+            </button>
+            <button
+                onClick={async () => {
+                    const isEn = i18n?.language === 'en';
+                    const msg = isEn
+                        ? 'This will permanently delete your account and ALL your data (plans, foods, history). This action CANNOT be undone. Type DELETE to confirm:'
+                        : 'Esto eliminará permanentemente tu cuenta y TODOS tus datos (planes, alimentos, historial). Esta acción NO se puede deshacer. Escribe ELIMINAR para confirmar:';
+                    const expected = isEn ? 'DELETE' : 'ELIMINAR';
+                    const input = prompt(msg);
+                    if (input !== expected) return;
+                    try {
+                        const uid = authUser.uid;
+                        // Borrar subcolecciones y datos
+                        const {
+                            collection: col,
+                            getDocs: gd,
+                            deleteDoc: dd,
+                            doc: d,
+                        } = await import('firebase/firestore');
+                        const { db } = await import('../firebase');
+                        // customFoods
+                        const foodsSnap = await gd(col(db, 'users', uid, 'customFoods'));
+                        for (const doc of foodsSnap.docs) await dd(doc.ref);
+                        // history
+                        const histSnap = await gd(col(db, 'users', uid, 'history'));
+                        for (const doc of histSnap.docs) await dd(doc.ref);
+                        // shareTokens
+                        const tokSnap = await gd(col(db, 'users', uid, 'shareTokens'));
+                        for (const doc of tokSnap.docs) {
+                            await dd(d(db, '_shareTokens', doc.id)).catch(() => {});
+                            await dd(doc.ref);
+                        }
+                        // plan
+                        await dd(d(db, 'users', uid, 'data', 'plan')).catch(() => {});
+                        // auth user
+                        await authUser.delete();
+                        localStorage.clear();
+                    } catch (err) {
+                        if (err.code === 'auth/requires-recent-login') {
+                            toast.error(
+                                isEn
+                                    ? 'Please log out and log back in, then try again.'
+                                    : 'Por seguridad, cierra sesión, vuelve a entrar e inténtalo de nuevo.'
+                            );
+                        } else {
+                            toast.error(err.message || 'Error');
+                        }
+                    }
+                }}
+                className="w-full py-2 bg-transparent border border-rose-900/30 text-rose-500/60 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 mt-3 hover:bg-rose-950/30 hover:text-rose-400 transition-colors"
+            >
+                <TrashIcon size={12} /> {i18n?.language === 'en' ? 'Delete account' : 'Eliminar cuenta'}
             </button>
         </Section>
     );
