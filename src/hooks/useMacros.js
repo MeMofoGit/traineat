@@ -51,29 +51,48 @@ function calculateTDEE(bmr, activityLevel) {
     return Math.round(bmr * (multipliers[activityLevel] || 1.375));
 }
 
+/**
+ * Targets de macros por fase — basados en ISSN Position Stands,
+ * Helms et al. (2014), Aragon et al. (2017).
+ *
+ * Cada goal define: ajuste calórico vs TDEE, y g/kg para P/C/G.
+ * La grasa se calcula como "resto" si no se especifica explícitamente.
+ */
+const PHASE_TARGETS = {
+    bulk: { calAdj: 0.15, protPerKg: 2.0, carbPerKg: 5.0, fatPerKg: 1.0 },
+    cut: { calAdj: -0.2, protPerKg: 2.5, carbPerKg: 3.0, fatPerKg: 0.7 },
+    recomp: { calAdj: -0.05, protPerKg: 2.2, carbPerKg: 4.0, fatPerKg: 0.9 },
+    maintain: { calAdj: 0, protPerKg: 1.8, carbPerKg: 4.0, fatPerKg: 1.0 },
+};
+
+/** Exportado para que otros módulos (LP solver, nutrientTiming) puedan leerlo */
+export { PHASE_TARGETS };
+
 function getGoalCalories(tdee, goal) {
-    switch (goal) {
-        case 'cut':
-            return tdee - 500;
-        case 'bulk':
-            return tdee + 300;
-        case 'recomp':
-            return tdee - 200;
-        default:
-            return tdee;
-    }
+    const phase = PHASE_TARGETS[goal] || PHASE_TARGETS.maintain;
+    return Math.round(tdee * (1 + phase.calAdj));
 }
 
-function getTargetMacros(calories, weight, isTrainingDay) {
-    const proteinGrams = Math.round(weight * 2.2);
-    const fatGrams = Math.round(weight * (isTrainingDay ? 0.8 : 1.0));
+function getTargetMacros(calories, weight, isTrainingDay, goal) {
+    const phase = PHASE_TARGETS[goal] || PHASE_TARGETS.maintain;
+
+    // Proteína y grasa fijas por kg
+    const proteinGrams = Math.round(weight * phase.protPerKg);
+    const fatGrams = Math.round(weight * phase.fatPerKg);
+
+    // Carbos: lo que queda de calorías, ajustado por día de entreno
     const proteinCals = proteinGrams * 4;
     const fatCals = fatGrams * 9;
     const remainingCals = calories - proteinCals - fatCals;
-    const carbGrams = Math.max(0, Math.round(remainingCals / 4));
+    let carbGrams = Math.max(0, Math.round(remainingCals / 4));
+
+    // Días de descanso: reducir carbos un 20%, compensar con grasa
+    if (!isTrainingDay) {
+        carbGrams = Math.round(carbGrams * 0.8);
+    }
 
     return {
-        calories,
+        calories: isTrainingDay ? calories : Math.round(proteinCals + fatCals + carbGrams * 4),
         protein: proteinGrams,
         fat: fatGrams,
         carbs: carbGrams,
@@ -178,7 +197,7 @@ export function useMacros(isTrainingDay = true) {
         ? getGoalCalories(tdee, stats.goal) + 200 // Training Boost
         : getGoalCalories(tdee, stats.goal) - 200; // Rest Deficit
 
-    const targets = getTargetMacros(dailyCalories, stats.weight, isTrainingDay);
+    const targets = getTargetMacros(dailyCalories, stats.weight, isTrainingDay, stats.goal);
 
     // Calculate Consumed
     const dailyConsumed = useMemo(() => {

@@ -25,10 +25,11 @@ import {
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
 import { suggestSubstitutions } from '../utils/dietSuggester';
+import { balanceMeal } from '../utils/mealBalancer';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
 
-function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = false }) {
+function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = false, mealTarget }) {
     const { customFoods } = usePlan();
     const { calculateItemMacros } = useMacros();
     const entitlements = useEntitlements();
@@ -101,19 +102,41 @@ function StructuredMealEditor({ initialItems, onSave, onCancel, startAdding = fa
     const toast = useToast();
 
     const handleSuggestSubstitutions = () => {
+        if (mealTarget) {
+            // Nuevo: LP balancer con targets de macros
+            const result = balanceMeal(items, customFoods || [], mealTarget);
+            if (result.substitutions.length === 0 && result.status === 'optimal') {
+                toast.info('Tu comida ya está equilibrada. No se necesitan cambios.');
+                return;
+            }
+            if (result.substitutions.length === 0) {
+                // Fallback al algoritmo simple
+                const subs = suggestSubstitutions(items, customFoods || []);
+                if (subs.length === 0) {
+                    toast.info('No hay sustituciones disponibles. Añade más productos a Mi Nevera.');
+                    return;
+                }
+                setSuggestions({ type: 'substitutions', data: subs });
+                setSuggestionMode('substitute');
+                setShowSuggestions(true);
+                return;
+            }
+            // Aplicar directamente el resultado del LP y mostrar resumen
+            setItems(result.items);
+            const names = result.substitutions.map((s) => `${s.originalName} → ${s.newName}`).join(', ');
+            toast.success(`Balanceado: ${names}`);
+            return;
+        }
+        // Sin target: fallback al algoritmo simple
         const subs = suggestSubstitutions(items, customFoods || []);
         if (subs.length === 0) {
-            toast.info('No hay sustituciones disponibles. Añade más productos a Mi Nevera de la misma categoría.');
+            toast.info('No hay sustituciones disponibles. Añade más productos a Mi Nevera.');
             return;
         }
         setSuggestions({ type: 'substitutions', data: subs });
         setSuggestionMode('substitute');
         setShowSuggestions(true);
     };
-
-    // TODO (C5.5): handleOptimizeQuantities requiere targets de macros
-    // per-meal, no per-day. Necesita definir cómo repartir el daily target
-    // entre comidas (proporcional, fixed, user-defined). Diferido.
 
     const commitSave = () => {
         onSave(items);
@@ -515,6 +538,7 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                         <StructuredMealEditor
                             initialItems={activeOption.items || []}
                             onSave={handleSave}
+                            mealTarget={mealTarget}
                             onCancel={() => {
                                 setIsEditing(false);
                                 setQuickAdd(false);
@@ -609,8 +633,12 @@ function ViewFoodItem({ item }) {
     const nutriscore = customFood?.nutriscoreGrade;
     const nova = customFood?.novaGroup;
 
+    const isFromFridge = !!customFood;
+
     return (
-        <div className="bg-slate-900/30 rounded-xl overflow-hidden border border-slate-700/30">
+        <div
+            className={`rounded-xl overflow-hidden border ${isFromFridge ? 'bg-cyan-950/10 border-cyan-800/20' : 'bg-slate-900/30 border-slate-700/30'}`}
+        >
             <div className="flex items-center justify-between p-2.5">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                     <button onClick={() => setShowInfo((s) => !s)} className="shrink-0">
