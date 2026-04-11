@@ -1,6 +1,6 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, AlertTriangle, Shield, FileText, ExternalLink } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Heart, AlertTriangle, Shield, FileText, ExternalLink, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export default function About() {
@@ -41,8 +41,24 @@ export default function About() {
                     <h2 className="text-sm font-bold">{t('about.legal')}</h2>
                 </div>
                 <div className="space-y-2">
-                    <LegalLink icon={<FileText size={14} />} label={t('about.privacy')} note={t('about.comingSoon')} />
-                    <LegalLink icon={<FileText size={14} />} label={t('about.terms')} note={t('about.comingSoon')} />
+                    <Link
+                        to="/privacy"
+                        className="flex items-center justify-between p-3 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors"
+                    >
+                        <div className="flex items-center gap-2 text-sm text-slate-300">
+                            <FileText size={14} /> {t('about.privacy')}
+                        </div>
+                        <ChevronRight size={14} className="text-slate-500" />
+                    </Link>
+                    <Link
+                        to="/terms"
+                        className="flex items-center justify-between p-3 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors"
+                    >
+                        <div className="flex items-center gap-2 text-sm text-slate-300">
+                            <FileText size={14} /> {t('about.terms')}
+                        </div>
+                        <ChevronRight size={14} className="text-slate-500" />
+                    </Link>
                 </div>
             </section>
 

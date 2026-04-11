@@ -8,6 +8,8 @@ import Profile from './pages/Profile';
 import Fridge from './pages/Fridge';
 import Auth from './pages/Auth';
 import About from './pages/About';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import Layout from './components/Layout';
 import HealthDisclaimer from './components/HealthDisclaimer';
 import { useDisclaimer } from './hooks/useDisclaimer';
@@ -69,6 +71,8 @@ function AuthGate() {
                         <Route path="training" element={<Training />} />
                         <Route path="profile" element={<Profile />} />
                         <Route path="about" element={<About />} />
+                        <Route path="privacy" element={<Privacy />} />
+                        <Route path="terms" element={<Terms />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                 </Routes>
