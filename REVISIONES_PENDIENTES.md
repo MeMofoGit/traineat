@@ -60,3 +60,57 @@ Los iconos actuales del manifest son SVG (`icon-192.svg`, `icon-512.svg`). Chrom
 - [ ] Actualizar `index.html` apple-touch-icon para apuntar al PNG.
 
 ---
+
+## i18n — strings secundarios pendientes de migrar
+
+**Reportado**: 2026-04-12
+**Prioridad**: BAJA (no afecta funcionalidad, solo consistencia al cambiar idioma)
+
+Los strings principales de todas las páginas están migrados a `useTranslation()`. Quedan strings secundarios dentro de sub-componentes que aún están hardcodeados en español:
+
+### Dashboard
+
+- [ ] WeightBadge: "Peso", "Registrar peso", labels de tendencia
+- [ ] PhaseSelector: nombres de fases (vienen del plan, no traducibles), labels de fechas
+- [ ] WeeklyProgress: "Rest", labels de días (L,M,X,J,V,S,D)
+
+### Diet
+
+- [ ] StructuredMealEditor: labels de categorías en el select, "Añadir Alimento", "Cancelar" (parcial)
+- [ ] SuggestionPanel: "Sustituciones de Mi Nevera", "Aplicar", "Cancelar"
+- [ ] FoodItemRow (editor): labels de macros "Proteína", "Carbos", "Grasas"
+- [ ] MealCard: "Día:", "Comido", "Deshacer", "Comida registrada (diferente al plan)"
+- [ ] Nota de proteína por toma (>50g)
+- [ ] `confirm()` dialogs nativos (eliminar comida, etc.)
+
+### Training
+
+- [ ] Botones "Comenzar Sesión", "Cancelar Sesión", "Pausar", "Reanudar"
+- [ ] Labels de ejercicios: "series", "reps", "descanso"
+- [ ] Banner de entreno pendiente: "Entrenar hoy", "Saltar", "Ya lo hice"
+- [ ] WorkoutStatsModal: todas las estadísticas
+- [ ] Nombres de días (Lunes-Domingo) hardcodeados en usePendingWorkouts
+
+### Fridge
+
+- [ ] FoodCard: labels de macros (P, C, G)
+- [ ] FoodDetailModal: labels de nutrientes ("Proteínas", "Carbohidratos", etc.)
+- [ ] Confirmación de borrado
+- [ ] "Crear mi primer producto" en empty state
+
+### Profile
+
+- [ ] Labels de actividad (Sedentario, Ligero, Moderado, Activo, Muy activo) y sus descripciones
+- [ ] Labels de objetivo (Definición, Recomposición, Mantenimiento, Volumen)
+- [ ] AccountSection: "Cuenta anónima", "Vincular con Google/email", etc.
+- [ ] "Hombre"/"Mujer" en selector de sexo
+
+### CustomFoodModal
+
+- [ ] Todos los strings del modal (labels de campos, notices, errores)
+
+### Enfoque recomendado
+
+Migrar por componente, de mayor a menor impacto visual. Los JSON (`es.json`/`en.json`) ya tienen las traducciones preparadas para la mayoría — solo falta conectar `t('key')` en cada sitio.
+
+---
