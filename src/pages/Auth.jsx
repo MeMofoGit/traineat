@@ -11,6 +11,7 @@ import { Dumbbell, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export default function Auth() {
     const [mode, setMode] = useState('login'); // 'login' | 'register' | 'reset'

@@ -141,6 +141,12 @@ export function PlanProvider({ children }) {
     useEffect(() => {
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
             setAuthReady(true);
+            if (!currentUser) {
+                setUser(null);
+                setHistoryList([]);
+                setCustomFoods([]);
+                return;
+            }
             if (currentUser) {
                 setUser(currentUser);
                 const uid = currentUser.uid;
