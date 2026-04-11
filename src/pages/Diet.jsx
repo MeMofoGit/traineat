@@ -321,7 +321,7 @@ function StructuredMealEditor({ initialItems, onSave, onCancel }) {
     );
 }
 
-function MealCard({ slot, meal, trainingDay, timingRole, mealTarget }) {
+function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlot, onRemoveSlot, mealLabels }) {
     const { updateMealOption, addMealOption, deleteMealOption, setSelectedOption } = usePlan();
     const [isEditing, setIsEditing] = useState(false);
     const { sumMacros } = useMacros();
@@ -329,6 +329,8 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget }) {
     // Get Active Option
     const activeIndex = meal.selectedOptionIndex || 0;
     const activeOption = meal.options ? meal.options[activeIndex] : { items: [], id: 1, name: 'Opción 1' };
+
+    const [editingSlot, setEditingSlot] = useState(false);
 
     // Safety check if migration hasn't run yet/render cycle quirk
     if (!activeOption) return null;
@@ -349,19 +351,45 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget }) {
         <article className="bg-slate-800/50 rounded-2xl overflow-hidden border border-slate-700/50 hover:border-blue-500/30 transition-all group">
             {/* Header: Time & Title */}
             <div className="bg-slate-900/50 p-4 flex justify-between items-center border-b border-slate-700/50">
-                <div className="flex items-center gap-3">
-                    <div className="bg-blue-900/30 p-2 rounded-lg text-blue-400">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="bg-blue-900/30 p-2 rounded-lg text-blue-400 shrink-0">
                         <ChefHat size={18} />
                     </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-slate-200">{slot.label}</h3>
-                            <span className="text-xs font-mono text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
+                    {editingSlot ? (
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <select
+                                value={slot.label}
+                                onChange={(e) => onUpdateSlot(slot.id, { label: e.target.value })}
+                                className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-sm text-white outline-none"
+                            >
+                                {mealLabels.map((l) => (
+                                    <option key={l} value={l}>
+                                        {l}
+                                    </option>
+                                ))}
+                            </select>
+                            <input
+                                type="time"
+                                value={slot.time}
+                                onChange={(e) => onUpdateSlot(slot.id, { time: e.target.value })}
+                                className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-sm text-white outline-none w-24 [color-scheme:dark]"
+                            />
+                            <button
+                                onClick={() => setEditingSlot(false)}
+                                className="p-1 text-emerald-400 hover:text-emerald-300"
+                            >
+                                <Check size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="font-bold text-slate-200 truncate">{slot.label}</h3>
+                            <span className="text-xs font-mono text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded shrink-0">
                                 {slot.time}
                             </span>
                             {timingRole && timingRole !== 'normal' && TIMING_ROLES[timingRole] && (
                                 <span
-                                    className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                    className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0 ${
                                         timingRole === 'pre'
                                             ? 'bg-amber-900/40 text-amber-400 border border-amber-700/40'
                                             : 'bg-emerald-900/40 text-emerald-400 border border-emerald-700/40'
@@ -371,21 +399,39 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget }) {
                                 </span>
                             )}
                         </div>
-                        {slot.notes && <p className="text-xs text-slate-400 mt-0.5">{slot.notes}</p>}
-                    </div>
+                    )}
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1">
-                    {!isEditing && (
+                {!editingSlot && (
+                    <div className="flex items-center gap-0.5 shrink-0">
                         <button
-                            onClick={() => setIsEditing(true)}
-                            className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-blue-400 transition-colors"
+                            onClick={() => setEditingSlot(true)}
+                            className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+                            title="Editar hora/nombre"
                         >
-                            <Edit2 size={16} />
+                            <Clock size={14} />
                         </button>
-                    )}
-                </div>
+                        {!isEditing && (
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-blue-400 transition-colors"
+                                title="Editar alimentos"
+                            >
+                                <Edit2 size={14} />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => {
+                                if (confirm(`¿Eliminar "${slot.label}"?`)) onRemoveSlot(slot.id);
+                            }}
+                            className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
+                            title="Eliminar comida"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Option Tabs */}
@@ -405,23 +451,26 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget }) {
                         </button>
                     ))}
 
-                    {/* Add Option Button */}
-                    <div className="h-4 w-[1px] bg-slate-700 mx-1" />
-
-                    <button
-                        onClick={() => addMealOption(slot.id, activeIndex)}
-                        title="Duplicar actual"
-                        className="p-1.5 rounded-full text-slate-500 hover:text-blue-400 hover:bg-slate-800 transition-colors"
-                    >
-                        <Copy size={12} />
-                    </button>
-                    <button
-                        onClick={() => addMealOption(slot.id)}
-                        title="Nueva vacía"
-                        className="p-1.5 rounded-full text-slate-500 hover:text-emerald-400 hover:bg-slate-800 transition-colors"
-                    >
-                        <Plus size={14} />
-                    </button>
+                    {/* Add Option Button — max 7 (Lun-Dom) */}
+                    {meal.options.length < 7 && (
+                        <>
+                            <div className="h-4 w-[1px] bg-slate-700 mx-1" />
+                            <button
+                                onClick={() => addMealOption(slot.id, activeIndex)}
+                                title="Duplicar al siguiente día"
+                                className="p-1.5 rounded-full text-slate-500 hover:text-blue-400 hover:bg-slate-800 transition-colors"
+                            >
+                                <Copy size={12} />
+                            </button>
+                            <button
+                                onClick={() => addMealOption(slot.id)}
+                                title="Nuevo día vacío"
+                                className="p-1.5 rounded-full text-slate-500 hover:text-emerald-400 hover:bg-slate-800 transition-colors"
+                            >
+                                <Plus size={14} />
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -621,10 +670,38 @@ function MacroSummary({ isTrainingDay }) {
     );
 }
 
+const JS_DAY_TO_NAME = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
 export default function Diet() {
-    const { plan, updateMeal, updateTrainingTime } = usePlan();
+    const {
+        plan,
+        updateMeal,
+        updateTrainingTime,
+        setSelectedOption,
+        addMealSlot,
+        removeMealSlot,
+        updateMealSlot,
+        mealLabels,
+    } = usePlan();
     const [trainingDay, setTrainingDay] = useState(true);
     const { targets } = useMacros(trainingDay);
+    const todayAutoSelected = React.useRef(false);
+
+    // Auto-seleccionar la opción del día actual al montar
+    React.useEffect(() => {
+        if (todayAutoSelected.current) return;
+        todayAutoSelected.current = true;
+        const todayName = JS_DAY_TO_NAME[new Date().getDay()];
+        const mealSlots = plan.schedule?.default?.filter((s) => s.type === 'meal') || [];
+        for (const slot of mealSlots) {
+            const meal = plan.meals?.[slot.id];
+            if (!meal?.options) continue;
+            const idx = meal.options.findIndex((o) => o.name === todayName);
+            if (idx >= 0 && idx !== (meal.selectedOptionIndex || 0)) {
+                setSelectedOption(slot.id, idx);
+            }
+        }
+    }, [plan.schedule, plan.meals, setSelectedOption]);
 
     // Nutrient timing: roles de cada comida según hora de entreno
     const mealRoles = useMemo(
@@ -702,20 +779,31 @@ export default function Diet() {
 
                 {plan.schedule.default
                     .filter((item) => item.type === 'meal')
-                    .map((slot, index) => {
+                    .map((slot) => {
                         const meal = getMeal(slot.id);
                         return (
                             <MealCard
-                                key={index}
+                                key={slot.id}
                                 slot={slot}
                                 meal={meal}
                                 trainingDay={trainingDay}
                                 timingRole={mealRoles[slot.id]}
                                 mealTarget={mealTargets[slot.id]}
                                 onUpdate={(newData) => updateMeal(slot.id, newData)}
+                                onUpdateSlot={updateMealSlot}
+                                onRemoveSlot={removeMealSlot}
+                                mealLabels={mealLabels}
                             />
                         );
                     })}
+
+                {/* Añadir comida */}
+                <button
+                    onClick={() => addMealSlot('Comida', '12:00')}
+                    className="w-full py-3 border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-2xl text-slate-500 hover:text-blue-400 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                    <Plus size={16} /> Añadir comida
+                </button>
             </div>
         </div>
     );

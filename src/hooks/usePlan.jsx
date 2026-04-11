@@ -23,6 +23,17 @@ import {
 
 const PlanContext = createContext();
 
+const DAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+/** Devuelve el siguiente día de la semana que no esté usado en las opciones existentes. */
+function getNextDayName(existingOptions) {
+    const usedNames = new Set((existingOptions || []).map((o) => o.name));
+    for (const day of DAY_NAMES) {
+        if (!usedNames.has(day)) return day;
+    }
+    return `Variante ${(existingOptions?.length || 0) + 1}`;
+}
+
 export function PlanProvider({ children }) {
     const [user, setUser] = useState(null);
     const [authReady, setAuthReady] = useState(false); // true once onAuthStateChanged fires
@@ -110,6 +121,17 @@ export function PlanProvider({ children }) {
                     const { ingredients: _unused, ...rest } = opt;
                     return { ...rest, items: rest.items || [] };
                 });
+
+                // Migration: rename "Opción N" / "Opción N (Copia)" to day names
+                const hasLegacyNames = meal.options.some((o) => /^Opción \d/.test(o.name));
+                if (hasLegacyNames) {
+                    meal.options = meal.options.map((opt, idx) => {
+                        if (/^Opción \d/.test(opt.name)) {
+                            return { ...opt, name: DAY_NAMES[idx] || opt.name };
+                        }
+                        return opt;
+                    });
+                }
             });
         }
         return parsed;
@@ -128,6 +150,18 @@ export function PlanProvider({ children }) {
                 const planRef = doc(db, 'users', uid, 'data', 'plan');
                 const planUnsub = onSnapshot(planRef, async (docSnap) => {
                     if (docSnap.exists()) {
+                        // Si hay cambios locales pendientes (dirty flag), subir local a Firestore
+                        // en vez de sobreescribir con datos viejos del servidor.
+                        const isDirty = localStorage.getItem('fitness_plan_dirty');
+                        if (isDirty) {
+                            localStorage.removeItem('fitness_plan_dirty');
+                            const localData = JSON.parse(localStorage.getItem('fitness_plan_data') || 'null');
+                            if (localData) {
+                                console.log('🔄 Local dirty — pushing local to Firestore');
+                                setDoc(planRef, localData).catch(console.error);
+                                return; // no sobreescribir local — el setDoc disparará otro onSnapshot
+                            }
+                        }
                         console.log('📥 Loaded PLAN from Firestore');
                         setPlanData(docSnap.data());
                     } else {
@@ -208,6 +242,7 @@ export function PlanProvider({ children }) {
     // 2. PERSISTENCE (Local + Cloud)
     // Debounce cloud saves to avoid hitting write limits or spamming
     const timeoutRef = useRef(null);
+    const pendingSaveRef = useRef(null); // datos pendientes de flush a Firestore
 
     useEffect(() => {
         // Always save local (immediate backup)
@@ -215,13 +250,31 @@ export function PlanProvider({ children }) {
 
         // Save to Cloud (debounced 2s)
         if (user) {
+            pendingSaveRef.current = { uid: user.uid, data: planData };
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
             timeoutRef.current = setTimeout(() => {
                 console.log('☁️ Syncing PLAN to Firestore...');
                 setDoc(doc(db, 'users', user.uid, 'data', 'plan'), planData).catch(console.error);
+                pendingSaveRef.current = null;
             }, 2000);
         }
     }, [planData, user]);
+
+    // Flush pendiente al cerrar/recargar para no perder cambios
+    useEffect(() => {
+        const flush = () => {
+            if (pendingSaveRef.current) {
+                const { uid: u, data } = pendingSaveRef.current;
+                // sendBeacon no soporta Firestore, usamos fetch síncrono no es posible.
+                // Mejor: guardar flag en localStorage para que al volver detecte divergencia.
+                localStorage.setItem('fitness_plan_dirty', 'true');
+                // Intento best-effort con el timeout que quede
+                setDoc(doc(db, 'users', u, 'data', 'plan'), data).catch(() => {});
+            }
+        };
+        window.addEventListener('beforeunload', flush);
+        return () => window.removeEventListener('beforeunload', flush);
+    }, []);
 
     // MEAL ACTIONS
     const updateMealOption = (mealId, optionIndex, newContent) => {
@@ -242,7 +295,9 @@ export function PlanProvider({ children }) {
     const addMealOption = (mealId, baseOptionIndex = null) => {
         setPlanData((prev) => {
             const meal = prev.meals[mealId];
+            if (meal.options.length >= 7) return prev; // Máx 7 días
             const newId = Math.max(...meal.options.map((o) => o.id), 0) + 1;
+            const nextDay = getNextDayName(meal.options);
 
             let newOption;
             if (baseOptionIndex !== null && meal.options[baseOptionIndex]) {
@@ -250,17 +305,26 @@ export function PlanProvider({ children }) {
                 newOption = {
                     ...meal.options[baseOptionIndex],
                     id: newId,
-                    name: `Opción ${meal.options.length + 1} (Copia)`,
+                    name: nextDay,
                 };
             } else {
                 // Empty
                 newOption = {
                     id: newId,
-                    name: `Opción ${meal.options.length + 1}`,
+                    name: nextDay,
                     items: [],
                     note: '',
                 };
             }
+
+            // Ordenar por día de la semana
+            const allOptions = [...meal.options, newOption];
+            allOptions.sort((a, b) => {
+                const ia = DAY_NAMES.indexOf(a.name);
+                const ib = DAY_NAMES.indexOf(b.name);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+            const newIndex = allOptions.findIndex((o) => o.id === newId);
 
             return {
                 ...prev,
@@ -268,8 +332,8 @@ export function PlanProvider({ children }) {
                     ...prev.meals,
                     [mealId]: {
                         ...meal,
-                        options: [...meal.options, newOption],
-                        selectedOptionIndex: meal.options.length, // Auto-select new
+                        options: allOptions,
+                        selectedOptionIndex: newIndex >= 0 ? newIndex : allOptions.length - 1, // Auto-select new
                     },
                 },
             };
@@ -307,6 +371,48 @@ export function PlanProvider({ children }) {
                 [mealId]: { ...prev.meals[mealId], selectedOptionIndex: index },
             },
         }));
+    };
+
+    // === SCHEDULE MANAGEMENT ===
+
+    const MEAL_LABELS = ['Desayuno', 'Snack Mañana', 'Comida', 'Merienda', 'Cena', 'Snack Noche'];
+
+    const addMealSlot = (label, time) => {
+        setPlanData((prev) => {
+            const id = 'meal_' + Date.now();
+            const newSlot = { time: time || '12:00', type: 'meal', id, label: label || 'Comida' };
+            const newSchedule = [...(prev.schedule?.default || []), newSlot].sort((a, b) =>
+                a.time.localeCompare(b.time)
+            );
+            const newMeals = {
+                ...prev.meals,
+                [id]: {
+                    goal: '',
+                    macros: '',
+                    selectedOptionIndex: 0,
+                    options: [{ id: 1, name: DAY_NAMES[0], items: [], note: '' }],
+                },
+            };
+            return { ...prev, schedule: { ...prev.schedule, default: newSchedule }, meals: newMeals };
+        });
+    };
+
+    const removeMealSlot = (slotId) => {
+        setPlanData((prev) => {
+            const newSchedule = (prev.schedule?.default || []).filter((s) => s.id !== slotId);
+            const { [slotId]: _removed, ...newMeals } = prev.meals;
+            return { ...prev, schedule: { ...prev.schedule, default: newSchedule }, meals: newMeals };
+        });
+    };
+
+    const updateMealSlot = (slotId, updates) => {
+        setPlanData((prev) => {
+            let newSchedule = (prev.schedule?.default || []).map((s) => (s.id === slotId ? { ...s, ...updates } : s));
+            if (updates.time) {
+                newSchedule = newSchedule.sort((a, b) => a.time.localeCompare(b.time));
+            }
+            return { ...prev, schedule: { ...prev.schedule, default: newSchedule } };
+        });
     };
 
     const updateUser = (newFields) => {
@@ -771,6 +877,10 @@ export function PlanProvider({ children }) {
                 addMealOption,
                 deleteMealOption,
                 setSelectedOption,
+                addMealSlot,
+                removeMealSlot,
+                updateMealSlot,
+                mealLabels: MEAL_LABELS,
                 updateUser,
                 updateTrainingTime,
                 setActivePhaseId,
