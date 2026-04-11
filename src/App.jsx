@@ -11,6 +11,8 @@ import About from './pages/About';
 import Layout from './components/Layout';
 import HealthDisclaimer from './components/HealthDisclaimer';
 import { useDisclaimer } from './hooks/useDisclaimer';
+import Onboarding from './components/Onboarding';
+import { useOnboarding } from './hooks/useOnboarding';
 
 import { PlanProvider, usePlan } from './hooks/usePlan';
 import { ToastProvider } from './components/Toast';
@@ -39,6 +41,8 @@ function FallbackUI() {
 function AuthGate() {
     const { authUser, authReady } = usePlan();
     const { accepted, accept } = useDisclaimer();
+    const { done: onboardingDone, finish: finishOnboarding } = useOnboarding();
+    const { updateUser } = usePlan();
 
     if (!authReady) {
         return (
@@ -55,6 +59,7 @@ function AuthGate() {
     return (
         <>
             {!accepted && <HealthDisclaimer onAccept={accept} />}
+            {accepted && !onboardingDone && <Onboarding onFinish={finishOnboarding} onSave={updateUser} />}
             <Router>
                 <Routes>
                     <Route path="/" element={<Layout />}>
