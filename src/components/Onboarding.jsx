@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, ArrowLeft, Dumbbell, User, Target, Activity, Check } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Dumbbell, User, Target, Activity, Check, X, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const GENDERS = [
@@ -59,6 +59,7 @@ export default function Onboarding({ onFinish, onSave }) {
         termsAccepted: false,
     });
 
+    const [legalPopup, setLegalPopup] = useState(null); // 'terms' | 'privacy' | null
     const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
     const steps = [
@@ -189,31 +190,29 @@ export default function Onboarding({ onFinish, onSave }) {
                         className="mt-0.5 accent-blue-500"
                     />
                     <span className="text-[11px] text-slate-300 leading-relaxed">
-                        {isEn ? (
-                            <>
-                                He leído y acepto los{' '}
-                                <a href="/terms" target="_blank" className="text-blue-400 underline">
-                                    Terms of Service
-                                </a>{' '}
-                                y la{' '}
-                                <a href="/privacy" target="_blank" className="text-blue-400 underline">
-                                    Privacy Policy
-                                </a>
-                                . <span className="text-rose-400">*</span>
-                            </>
-                        ) : (
-                            <>
-                                He leído y acepto los{' '}
-                                <a href="/terms" target="_blank" className="text-blue-400 underline">
-                                    Términos de Servicio
-                                </a>{' '}
-                                y la{' '}
-                                <a href="/privacy" target="_blank" className="text-blue-400 underline">
-                                    Política de Privacidad
-                                </a>
-                                . <span className="text-rose-400">*</span>
-                            </>
-                        )}
+                        {isEn ? 'I accept the ' : 'Acepto los '}
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                setLegalPopup('terms');
+                            }}
+                            className="text-blue-400 underline"
+                        >
+                            {isEn ? 'Terms of Service' : 'Términos de Servicio'}
+                        </button>
+                        {isEn ? ' and the ' : ' y la '}
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                setLegalPopup('privacy');
+                            }}
+                            className="text-blue-400 underline"
+                        >
+                            {isEn ? 'Privacy Policy' : 'Política de Privacidad'}
+                        </button>
+                        . <span className="text-rose-400">*</span>
                     </span>
                 </label>
 
@@ -227,8 +226,8 @@ export default function Onboarding({ onFinish, onSave }) {
                     />
                     <span className="text-[11px] text-slate-400 leading-relaxed">
                         {isEn
-                            ? 'I want to receive personalized nutrition tips and product updates by email. Unsubscribe anytime.'
-                            : 'Quiero recibir consejos de nutrición personalizados y novedades del producto por email. Baja en cualquier momento.'}
+                            ? '🎯 Keep me in the loop! Get smart meal ideas, new features & exclusive content. Easy unsubscribe.'
+                            : '🎯 ¡Mantenme al día! Recibir ideas de comidas, nuevas funciones y contenido exclusivo por email. Baja fácil.'}
                     </span>
                 </label>
             </div>
@@ -300,7 +299,182 @@ export default function Onboarding({ onFinish, onSave }) {
                     )}
                 </button>
             </div>
+
+            {/* Legal popup */}
+            {legalPopup && <LegalPopup type={legalPopup} isEn={isEn} onClose={() => setLegalPopup(null)} />}
         </div>,
         document.body
+    );
+}
+
+function LegalPopup({ type, isEn, onClose }) {
+    const isTerms = type === 'terms';
+    const title = isTerms
+        ? isEn
+            ? 'Terms of Service'
+            : 'Términos de Servicio'
+        : isEn
+          ? 'Privacy Policy'
+          : 'Política de Privacidad';
+
+    return (
+        <div
+            className="fixed inset-0 z-[200] bg-slate-950/95 flex items-start justify-center pt-8 px-4 pb-4"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden max-h-[85vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
+                    <div className="flex items-center gap-2 text-white font-bold text-sm">
+                        <FileText size={16} className="text-blue-400" /> {title}
+                    </div>
+                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
+                        <X size={18} />
+                    </button>
+                </div>
+                <div className="overflow-y-auto p-4 text-xs text-slate-300 leading-relaxed space-y-3">
+                    {isTerms ? <TermsContent isEn={isEn} /> : <PrivacyContent isEn={isEn} />}
+                </div>
+                <div className="p-3 border-t border-slate-800 shrink-0">
+                    <button
+                        onClick={onClose}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                    >
+                        {isEn ? 'Close' : 'Cerrar'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function TermsContent({ isEn }) {
+    if (isEn)
+        return (
+            <>
+                <p>
+                    <strong>1. Acceptance.</strong> By using TrainEat you agree to these terms.
+                </p>
+                <p>
+                    <strong>2. Service.</strong> TrainEat is a nutrition and training tracking tool with macro
+                    calculations, meal planning, workout tracking and food scanning.
+                </p>
+                <p>
+                    <strong>3. Health Disclaimer.</strong> TrainEat does NOT provide medical advice. All calculations
+                    are estimates. Consult a professional before significant changes to diet or exercise.
+                </p>
+                <p>
+                    <strong>4. Accounts.</strong> You must be 13+ years old. You are responsible for your account
+                    security.
+                </p>
+                <p>
+                    <strong>5. Your Data.</strong> You own all data you create. We do not sell personal data to third
+                    parties.
+                </p>
+                <p>
+                    <strong>6. Prohibited Use.</strong> No accessing others' data, distributing harmful content, or
+                    abusing scanning features.
+                </p>
+                <p>
+                    <strong>7. Liability.</strong> TrainEat is provided "as is". We are not liable for health outcomes
+                    from using the app.
+                </p>
+                <p>
+                    <strong>8. Changes.</strong> We may update these terms. Continued use constitutes acceptance.
+                </p>
+                <p>
+                    <strong>9. Contact.</strong> legal@traineat.app
+                </p>
+            </>
+        );
+    return (
+        <>
+            <p>
+                <strong>1. Aceptación.</strong> Al usar TrainEat aceptas estos términos.
+            </p>
+            <p>
+                <strong>2. Servicio.</strong> TrainEat es una herramienta de seguimiento nutricional y de entrenamiento
+                con cálculos de macros, planificación de comidas, seguimiento de entrenamientos y escaneo de alimentos.
+            </p>
+            <p>
+                <strong>3. Aviso de salud.</strong> TrainEat NO proporciona consejo médico. Todos los cálculos son
+                estimaciones. Consulta a un profesional antes de cambios significativos.
+            </p>
+            <p>
+                <strong>4. Cuentas.</strong> Debes tener 13+ años. Eres responsable de la seguridad de tu cuenta.
+            </p>
+            <p>
+                <strong>5. Tus datos.</strong> Conservas la propiedad de todos tus datos. No vendemos datos personales a
+                terceros.
+            </p>
+            <p>
+                <strong>6. Uso prohibido.</strong> No acceder a datos ajenos, distribuir contenido dañino ni abusar del
+                escaneo.
+            </p>
+            <p>
+                <strong>7. Responsabilidad.</strong> TrainEat se proporciona "tal cual". No somos responsables de
+                resultados de salud.
+            </p>
+            <p>
+                <strong>8. Cambios.</strong> Podemos actualizar estos términos. El uso continuado implica aceptación.
+            </p>
+            <p>
+                <strong>9. Contacto.</strong> legal@traineat.app
+            </p>
+        </>
+    );
+}
+
+function PrivacyContent({ isEn }) {
+    if (isEn)
+        return (
+            <>
+                <p>
+                    <strong>1. Data We Collect.</strong> Profile data, nutrition plans, training history, weight log,
+                    custom foods, authentication data.
+                </p>
+                <p>
+                    <strong>2. How We Use It.</strong> Calculate personalized macros, sync across devices, improve the
+                    app.
+                </p>
+                <p>
+                    <strong>3. Third Parties.</strong> Firebase (Google): auth & database. Open Food Facts: product
+                    data. Anthropic: label OCR (images NOT stored). Sentry: error tracking.
+                </p>
+                <p>
+                    <strong>4. Security.</strong> Data stored in Google Cloud with encryption at rest and in transit.
+                    Access restricted to your account.
+                </p>
+                <p>
+                    <strong>5. Your Rights (GDPR).</strong> Access, rectification, erasure, portability. Contact:
+                    privacy@traineat.app
+                </p>
+            </>
+        );
+    return (
+        <>
+            <p>
+                <strong>1. Datos que recopilamos.</strong> Datos de perfil, planes nutricionales, historial de entrenos,
+                registro de peso, productos personalizados, datos de autenticación.
+            </p>
+            <p>
+                <strong>2. Cómo los usamos.</strong> Calcular macros personalizados, sincronizar entre dispositivos,
+                mejorar la app.
+            </p>
+            <p>
+                <strong>3. Terceros.</strong> Firebase (Google): auth y base de datos. Open Food Facts: datos de
+                productos. Anthropic: OCR etiquetas (imágenes NO almacenadas). Sentry: seguimiento errores.
+            </p>
+            <p>
+                <strong>4. Seguridad.</strong> Datos en Google Cloud con cifrado en reposo y tránsito. Acceso
+                restringido a tu cuenta.
+            </p>
+            <p>
+                <strong>5. Tus derechos (RGPD).</strong> Acceso, rectificación, supresión, portabilidad. Contacto:
+                privacy@traineat.app
+            </p>
+        </>
     );
 }
