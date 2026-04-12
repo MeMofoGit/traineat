@@ -310,11 +310,13 @@ export function PlanProvider({ children }) {
 
             let newOption;
             if (baseOptionIndex !== null && meal.options[baseOptionIndex]) {
-                // Clone
+                // Clone — deep copy items para no compartir referencia
+                const base = meal.options[baseOptionIndex];
                 newOption = {
-                    ...meal.options[baseOptionIndex],
+                    ...base,
                     id: newId,
                     name: nextDay,
+                    items: base.items ? base.items.map((item) => ({ ...item })) : [],
                 };
             } else {
                 // Empty
