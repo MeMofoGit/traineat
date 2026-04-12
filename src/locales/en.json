@@ -39,7 +39,10 @@
         "weeklyProgress": "Weekly Progress",
         "weight": "Weight",
         "logWeight": "Log weight",
-        "daysLeft": "{{count}} days left"
+        "daysLeft": "{{count}} days left",
+        "activePhase": "Active Phase",
+        "targetWeight": "Target weight",
+        "todayWeight": "Today's Weight"
     },
     "diet": {
         "title": "Your Nutrition",

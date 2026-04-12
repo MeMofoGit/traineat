@@ -194,6 +194,7 @@ export default function Dashboard() {
 }
 
 function PhaseSelector({ phases, activeId, onChange }) {
+    const { t } = useTranslation();
     const active = phases.find((p) => p.id === activeId) || phases[0];
     if (!active) return null;
 
@@ -202,7 +203,7 @@ function PhaseSelector({ phases, activeId, onChange }) {
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-amber-400">
                     <Target size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Fase Activa</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">{t('dashboard.activePhase')}</span>
                 </div>
                 <select
                     value={active.id}
@@ -237,7 +238,7 @@ function PhaseSelector({ phases, activeId, onChange }) {
                 )}
                 {active.target_weight && (
                     <div className="flex justify-between text-slate-400">
-                        <span>Peso objetivo</span>
+                        <span>{t('dashboard.targetWeight')}</span>
                         <span className="font-mono text-slate-300">{active.target_weight}</span>
                     </div>
                 )}
@@ -247,6 +248,7 @@ function PhaseSelector({ phases, activeId, onChange }) {
 }
 
 function WeightTracker() {
+    const { t } = useTranslation();
     const { plan, logWeight, updateUser } = usePlan();
     const [islogging, setIsLogging] = useState(false);
     const [isEditingHeight, setIsEditingHeight] = useState(false);
@@ -359,7 +361,9 @@ function WeightTracker() {
 
                 {islogging ? (
                     <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl absolute right-6 z-10 shadow-xl w-40 animate-in fade-in zoom-in-95">
-                        <h4 className="text-xs font-bold text-slate-400 mb-2 uppercase text-center">Peso de Hoy</h4>
+                        <h4 className="text-xs font-bold text-slate-400 mb-2 uppercase text-center">
+                            {t('dashboard.todayWeight')}
+                        </h4>
 
                         <div className="flex items-center justify-between mb-3">
                             <input
@@ -572,6 +576,7 @@ function WeeklyProgress({ plan }) {
 }
 
 function WeightBadge({ plan }) {
+    const { t } = useTranslation();
     const { logWeight } = usePlan();
     const [showInput, setShowInput] = useState(false);
     const [weightInput, setWeightInput] = useState('');
@@ -596,7 +601,7 @@ function WeightBadge({ plan }) {
                 onClick={() => setShowInput(true)}
                 className="w-full flex items-center justify-center gap-2 bg-slate-800/50 rounded-xl px-4 py-3 border border-dashed border-slate-700 text-slate-400 text-xs font-bold hover:border-blue-500 hover:text-blue-400 transition-colors"
             >
-                <Scale size={14} /> Registrar primer peso
+                <Scale size={14} /> {t('dashboard.logWeight')}
             </button>
         );
     }

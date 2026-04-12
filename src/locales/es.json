@@ -39,7 +39,10 @@
         "weeklyProgress": "Progreso Semanal",
         "weight": "Peso",
         "logWeight": "Registrar peso",
-        "daysLeft": "{{count}} días restantes"
+        "daysLeft": "{{count}} días restantes",
+        "activePhase": "Fase Activa",
+        "targetWeight": "Peso objetivo",
+        "todayWeight": "Peso de Hoy"
     },
     "diet": {
         "title": "Tu Nutrición",
