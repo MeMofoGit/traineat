@@ -25,23 +25,23 @@ import { createShareToken, listShareTokens, revokeShareToken } from '../services
 import { Share2, Copy, Trash2 as TrashIcon, ExternalLink as LinkIcon } from 'lucide-react';
 
 const GENDERS = [
-    { value: 'male', label: 'Hombre' },
-    { value: 'female', label: 'Mujer' },
+    { value: 'male', labelKey: 'profile.male' },
+    { value: 'female', labelKey: 'profile.female' },
 ];
 
 const ACTIVITY_LEVELS = [
-    { value: 'sedentary', label: 'Sedentario', desc: 'Sin ejercicio o muy poco' },
-    { value: 'light', label: 'Ligero', desc: '1-3 días/semana' },
-    { value: 'moderate', label: 'Moderado', desc: '3-5 días/semana' },
-    { value: 'active', label: 'Activo', desc: '6-7 días/semana' },
-    { value: 'very_active', label: 'Muy activo', desc: 'Doble sesión / trabajo físico' },
+    { value: 'sedentary', labelKey: 'profile.sedentary', descKey: 'profile.sedentaryDesc' },
+    { value: 'light', labelKey: 'profile.light', descKey: 'profile.lightDesc' },
+    { value: 'moderate', labelKey: 'profile.moderate', descKey: 'profile.moderateDesc' },
+    { value: 'active', labelKey: 'profile.active', descKey: 'profile.activeDesc' },
+    { value: 'very_active', labelKey: 'profile.veryActive', descKey: 'profile.veryActiveDesc' },
 ];
 
 const GOAL_TYPES = [
-    { value: 'cut', label: 'Definición', desc: 'Déficit calórico' },
-    { value: 'recomp', label: 'Recomposición', desc: 'Déficit ligero' },
-    { value: 'maintain', label: 'Mantenimiento', desc: 'Calorías de mantenimiento' },
-    { value: 'bulk', label: 'Volumen', desc: 'Superávit calórico' },
+    { value: 'cut', labelKey: 'profile.goalCut', descKey: 'profile.goalCutDesc' },
+    { value: 'recomp', labelKey: 'profile.goalRecomp', descKey: 'profile.goalRecompDesc' },
+    { value: 'maintain', labelKey: 'profile.goalMaintain', descKey: 'profile.goalMaintainDesc' },
+    { value: 'bulk', labelKey: 'profile.goalBulk', descKey: 'profile.goalBulkDesc' },
 ];
 
 export default function Profile() {
@@ -145,7 +145,7 @@ export default function Profile() {
                                         : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
                                 }`}
                             >
-                                {g.label}
+                                {t(g.labelKey)}
                             </button>
                         ))}
                     </div>
@@ -177,8 +177,8 @@ export default function Profile() {
                                     : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
                             }`}
                         >
-                            <div className="text-sm font-bold">{a.label}</div>
-                            <div className="text-xs text-slate-500">{a.desc}</div>
+                            <div className="text-sm font-bold">{t(a.labelKey)}</div>
+                            <div className="text-xs text-slate-500">{t(a.descKey)}</div>
                         </button>
                     ))}
                 </div>
@@ -197,8 +197,8 @@ export default function Profile() {
                                     : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
                             }`}
                         >
-                            <div className="text-sm font-bold">{g.label}</div>
-                            <div className="text-[10px] text-slate-500">{g.desc}</div>
+                            <div className="text-sm font-bold">{t(g.labelKey)}</div>
+                            <div className="text-[10px] text-slate-500">{t(g.descKey)}</div>
                         </button>
                     ))}
                 </div>
