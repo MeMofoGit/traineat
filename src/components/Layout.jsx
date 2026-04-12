@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Utensils, Dumbbell, User, Refrigerator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import OfflineIndicator from './OfflineIndicator';
 
 export default function Layout() {
     const { pathname } = useLocation();
@@ -30,6 +31,7 @@ export default function Layout() {
                 {/* Helper gradient for aesthetics */}
                 <div className="fixed top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none" />
 
+                <OfflineIndicator />
                 <Outlet />
             </main>
 
