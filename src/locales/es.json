@@ -89,7 +89,19 @@
         "products": "{{count}} productos guardados",
         "confirmDelete": "¿Borrar este producto?",
         "nutritionInfo": "Información nutricional",
-        "per": "por"
+        "per": "por",
+        "createFirst": "Crear mi primer producto",
+        "updated": "Producto actualizado",
+        "added": "{{name}} añadido a Mi Nevera",
+        "confirmDeleteMsg": "¿Borrar {{name}}? Las comidas que lo usen mostrarán macros vacíos.",
+        "deleteBtn": "Borrar",
+        "protein": "Proteínas",
+        "carbs": "Carbohidratos",
+        "sugars": "de los cuales azúcares",
+        "fats": "Grasas",
+        "saturated": "de las cuales saturadas",
+        "fiber": "Fibra",
+        "salt": "Sal"
     },
     "training": {
         "rest": "Descanso",

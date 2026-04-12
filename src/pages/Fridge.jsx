@@ -205,7 +205,7 @@ export default function Fridge() {
                 initialFood={editingFood}
                 onSaved={(food) => {
                     toast.success(
-                        editingFood ? 'Producto actualizado' : `${food?.name || 'Producto'} añadido a Mi Nevera`
+                        editingFood ? t('fridge.updated') : t('fridge.added', { name: food?.name || 'Producto' })
                     );
                 }}
             />
@@ -259,7 +259,7 @@ function EmptyState({ onCreate, canCreate }) {
                     className="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-3 rounded-xl text-sm font-bold inline-flex items-center gap-2"
                 >
                     <Plus size={16} />
-                    Crear mi primer producto
+                    {t('fridge.createFirst')}
                 </button>
             ) : (
                 <button
@@ -288,6 +288,7 @@ function CategoryChip({ active, onClick, label }) {
 }
 
 function FoodCard({ food, onView, onEdit, onDelete, confirmDelete, onConfirmDelete, onCancelDelete }) {
+    const { t } = useTranslation();
     const cat = Object.values(FOOD_CATEGORIES).find((c) => c.id === food.category) || FOOD_CATEGORIES.OTHER;
     const m = food.macros || {};
     const serving = food.servingSize || (food.defaultUnit === 'g' || food.defaultUnit === 'ml' ? 100 : 1);
@@ -297,23 +298,20 @@ function FoodCard({ food, onView, onEdit, onDelete, confirmDelete, onConfirmDele
             <li className="bg-rose-950/30 border border-rose-900 rounded-xl p-4 space-y-3">
                 <div className="flex items-start gap-2 text-sm text-rose-200">
                     <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                    <span>
-                        ¿Borrar <strong>{food.name}</strong>? Las comidas que lo usen mostrarán macros vacíos hasta que
-                        lo edites.
-                    </span>
+                    <span>{t('fridge.confirmDeleteMsg', { name: food.name })}</span>
                 </div>
                 <div className="flex gap-2">
                     <button
                         onClick={onCancelDelete}
                         className="flex-1 py-2 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 hover:text-white"
                     >
-                        Cancelar
+                        {t('common.cancel')}
                     </button>
                     <button
                         onClick={onConfirmDelete}
                         className="flex-1 py-2 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white"
                     >
-                        Borrar
+                        {t('fridge.deleteBtn')}
                     </button>
                 </div>
             </li>
@@ -489,17 +487,19 @@ function FoodDetailModal({ food, onClose }) {
                         </div>
                         <div className="text-xl font-bold text-white mb-3">{Math.round(m.calories || 0)} kcal</div>
                         <div className="space-y-2">
-                            <NutrientRow label="Proteínas" value={m.protein} color="rose" />
-                            <NutrientRow label="Carbohidratos" value={m.carbs} color="amber" />
+                            <NutrientRow label={t('fridge.protein')} value={m.protein} color="rose" />
+                            <NutrientRow label={t('fridge.carbs')} value={m.carbs} color="amber" />
                             {m.sugars != null && (
-                                <NutrientRow label="  de los cuales azúcares" value={m.sugars} color="amber" sub />
+                                <NutrientRow label={t('fridge.sugars')} value={m.sugars} color="amber" sub />
                             )}
-                            <NutrientRow label="Grasas" value={m.fat} color="yellow" />
+                            <NutrientRow label={t('fridge.fats')} value={m.fat} color="yellow" />
                             {m.saturated != null && (
-                                <NutrientRow label="  de las cuales saturadas" value={m.saturated} color="yellow" sub />
+                                <NutrientRow label={t('fridge.saturated')} value={m.saturated} color="yellow" sub />
                             )}
-                            {m.fiber != null && <NutrientRow label="Fibra" value={m.fiber} color="emerald" />}
-                            {m.salt != null && <NutrientRow label="Sal" value={m.salt} color="slate" />}
+                            {m.fiber != null && (
+                                <NutrientRow label={t('fridge.fiber')} value={m.fiber} color="emerald" />
+                            )}
+                            {m.salt != null && <NutrientRow label={t('fridge.salt')} value={m.salt} color="slate" />}
                         </div>
                     </div>
                 </div>

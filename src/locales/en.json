@@ -89,7 +89,19 @@
         "products": "{{count}} products saved",
         "confirmDelete": "Delete this product?",
         "nutritionInfo": "Nutrition facts",
-        "per": "per"
+        "per": "per",
+        "createFirst": "Create my first product",
+        "updated": "Product updated",
+        "added": "{{name}} added to My Fridge",
+        "confirmDeleteMsg": "Delete {{name}}? Meals using it will show empty macros.",
+        "deleteBtn": "Delete",
+        "protein": "Protein",
+        "carbs": "Carbohydrates",
+        "sugars": "of which sugars",
+        "fats": "Fats",
+        "saturated": "of which saturated",
+        "fiber": "Fiber",
+        "salt": "Salt"
     },
     "training": {
         "rest": "Rest",
