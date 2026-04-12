@@ -68,7 +68,15 @@
         "noSubstitutions": "No substitutions available. Add more products to My Fridge.",
         "editMealTime": "Edit time/name",
         "editFoods": "Edit foods",
-        "deleteMeal": "Delete meal"
+        "deleteMeal": "Delete meal",
+        "addItem": "Add Food",
+        "fridgeGroup": "My Fridge",
+        "dbGroup": "Database",
+        "createProduct": "Create new product in My Fridge",
+        "balanceWeek": "Balance week with My Fridge",
+        "weekBalanced": "Week balanced: {{count}} changes",
+        "weekAlreadyBalanced": "Week is already balanced",
+        "noMealsToBalance": "No meals to balance"
     },
     "rebalance": {
         "title": "Adjust this meal to balance your day",

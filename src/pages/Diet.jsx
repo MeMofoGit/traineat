@@ -131,7 +131,7 @@ function StructuredMealEditor({
                 // Fallback al algoritmo simple
                 const subs = suggestSubstitutions(items, customFoods || []);
                 if (subs.length === 0) {
-                    toast.info('No hay sustituciones disponibles. Añade más productos a Mi Nevera.');
+                    toast.info(t('diet.noSubstitutions'));
                     return;
                 }
                 setSuggestions({ type: 'substitutions', data: subs });
@@ -214,7 +214,7 @@ function StructuredMealEditor({
                         >
                             <option value="">-- Selecciona Alimento --</option>
                             {availableFoods.some((f) => f.source === 'custom') && (
-                                <optgroup label="🧊 Mi Nevera">
+                                <optgroup label={`🧊 ${t('diet.fridgeGroup')}`}>
                                     {availableFoods
                                         .filter((f) => f.source === 'custom')
                                         .map((f) => (
@@ -224,7 +224,7 @@ function StructuredMealEditor({
                                         ))}
                                 </optgroup>
                             )}
-                            <optgroup label="Base de datos">
+                            <optgroup label={t('diet.dbGroup')}>
                                 {availableFoods
                                     .filter((f) => f.source !== 'custom')
                                     .map((f) => (
@@ -289,7 +289,7 @@ function StructuredMealEditor({
                             onClick={() => setIsAdding(false)}
                             className="flex-1 py-2 bg-slate-800 text-slate-400 rounded-lg text-xs font-bold"
                         >
-                            Cancelar
+                            {t('common.cancel')}
                         </button>
                         <button
                             onClick={handleAddItem}
@@ -306,7 +306,7 @@ function StructuredMealEditor({
                         onClick={() => setIsAdding(true)}
                         className="w-full py-2 border border-dashed border-slate-700 text-slate-500 hover:border-blue-500 hover:text-blue-500 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
                     >
-                        <Plus size={14} /> Añadir Alimento
+                        <Plus size={14} /> {t('diet.addItem')}
                     </button>
 
                     {/* Botón "Rellenar con Mi Nevera" (Fase 5a) — solo si hay items y no estamos en modo diary */}
@@ -1405,9 +1405,7 @@ export default function Diet() {
                                 .filter((d) => d.meals.length > 0);
 
                             if (days.length === 0) {
-                                toast.info(
-                                    t('nav.home') === 'Home' ? 'No meals to balance' : 'No hay comidas para balancear'
-                                );
+                                toast.info(t('diet.noMealsToBalance'));
                                 return;
                             }
 
@@ -1430,23 +1428,14 @@ export default function Diet() {
                             }
 
                             if (changesCount > 0) {
-                                toast.success(
-                                    t('nav.home') === 'Home'
-                                        ? `Week balanced: ${changesCount} changes`
-                                        : `Semana balanceada: ${changesCount} cambios`
-                                );
+                                toast.success(t('diet.weekBalanced', { count: changesCount }));
                             } else {
-                                toast.info(
-                                    t('nav.home') === 'Home'
-                                        ? 'Week is already balanced'
-                                        : 'La semana ya está equilibrada'
-                                );
+                                toast.info(t('diet.weekAlreadyBalanced'));
                             }
                         }}
                         className="w-full py-3 bg-cyan-900/20 border border-cyan-800/40 hover:bg-cyan-900/40 rounded-2xl text-cyan-300 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
                     >
-                        <Wand2 size={16} />{' '}
-                        {t('nav.home') === 'Home' ? 'Balance week with My Fridge' : 'Balancear semana con Mi Nevera'}
+                        <Wand2 size={16} /> {t('diet.balanceWeek')}
                     </button>
                 )}
             </div>

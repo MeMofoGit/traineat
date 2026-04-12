@@ -68,7 +68,15 @@
         "noSubstitutions": "No hay sustituciones disponibles. Añade más productos a Mi Nevera.",
         "editMealTime": "Editar hora/nombre",
         "editFoods": "Editar alimentos",
-        "deleteMeal": "Eliminar comida"
+        "deleteMeal": "Eliminar comida",
+        "addItem": "Añadir Alimento",
+        "fridgeGroup": "Mi Nevera",
+        "dbGroup": "Base de datos",
+        "createProduct": "Crear nuevo producto en Mi Nevera",
+        "balanceWeek": "Balancear semana con Mi Nevera",
+        "weekBalanced": "Semana balanceada: {{count}} cambios",
+        "weekAlreadyBalanced": "La semana ya está equilibrada",
+        "noMealsToBalance": "No hay comidas para balancear"
     },
     "rebalance": {
         "title": "Ajusta esta comida para equilibrar el día",
