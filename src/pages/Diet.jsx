@@ -30,7 +30,7 @@ import {
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
 import { suggestSubstitutions } from '../utils/dietSuggester';
-import { balanceMeal } from '../utils/mealBalancer';
+import { balanceMeal, balanceWeek } from '../utils/mealBalancer';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
 import { useTranslation } from 'react-i18next';
@@ -1142,12 +1142,14 @@ export default function Diet() {
     const {
         plan,
         updateMeal,
+        updateMealOption,
         updateTrainingTime,
         setSelectedOption,
         addMealSlot,
         removeMealSlot,
         updateMealSlot,
         mealLabels,
+        customFoods,
     } = usePlan();
     const [trainingDay, setTrainingDay] = useState(true);
     const [showSharePopup, setShowSharePopup] = useState(false);
@@ -1370,6 +1372,79 @@ export default function Diet() {
                 >
                     <Plus size={16} /> {t('diet.addMeal')}
                 </button>
+
+                {/* Balancear semana con LP */}
+                {trainingDay && (customFoods || []).length > 0 && (
+                    <button
+                        onClick={() => {
+                            const mealSlots = plan.schedule?.default?.filter((s) => s.type === 'meal') || [];
+                            const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+                            // Construir estructura para balanceWeek: por cada día, sus comidas con items y target
+                            const days = dayNames
+                                .map((dayName) => {
+                                    const dayMeals = mealSlots
+                                        .map((slot) => {
+                                            const meal = plan.meals?.[slot.id];
+                                            if (!meal?.options) return null;
+                                            const option = meal.options.find((o) => o.name === dayName);
+                                            if (!option?.items?.length) return null;
+                                            return {
+                                                slotId: slot.id,
+                                                items: option.items,
+                                                target: mealTargets[slot.id],
+                                            };
+                                        })
+                                        .filter(Boolean);
+                                    return { dayName, meals: dayMeals };
+                                })
+                                .filter((d) => d.meals.length > 0);
+
+                            if (days.length === 0) {
+                                toast.info(
+                                    t('nav.home') === 'Home' ? 'No meals to balance' : 'No hay comidas para balancear'
+                                );
+                                return;
+                            }
+
+                            const results = balanceWeek(days, customFoods || [], targets);
+
+                            // Aplicar resultados al plan
+                            let changesCount = 0;
+                            for (const day of results) {
+                                for (const meal of day.meals) {
+                                    if (meal.substitutions?.length > 0) {
+                                        const planMeal = plan.meals?.[meal.slotId];
+                                        if (!planMeal?.options) continue;
+                                        const optIdx = planMeal.options.findIndex((o) => o.name === day.dayName);
+                                        if (optIdx >= 0) {
+                                            updateMealOption(meal.slotId, optIdx, { items: meal.items });
+                                            changesCount += meal.substitutions.length;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (changesCount > 0) {
+                                toast.success(
+                                    t('nav.home') === 'Home'
+                                        ? `Week balanced: ${changesCount} changes`
+                                        : `Semana balanceada: ${changesCount} cambios`
+                                );
+                            } else {
+                                toast.info(
+                                    t('nav.home') === 'Home'
+                                        ? 'Week is already balanced'
+                                        : 'La semana ya está equilibrada'
+                                );
+                            }
+                        }}
+                        className="w-full py-3 bg-cyan-900/20 border border-cyan-800/40 hover:bg-cyan-900/40 rounded-2xl text-cyan-300 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                        <Wand2 size={16} />{' '}
+                        {t('nav.home') === 'Home' ? 'Balance week with My Fridge' : 'Balancear semana con Mi Nevera'}
+                    </button>
+                )}
             </div>
         </div>
     );
