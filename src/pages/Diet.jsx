@@ -593,7 +593,11 @@ function MealCard({
                                     <div className="absolute right-0 top-0">
                                         {meal.options.length > 1 && (
                                             <button
-                                                onClick={() => deleteMealOption(slot.id, activeIndex)}
+                                                onClick={() => {
+                                                    deleteMealOption(slot.id, activeIndex);
+                                                    setIsEditing(false);
+                                                    setQuickAdd(false);
+                                                }}
                                                 className="text-rose-400 hover:bg-rose-900/30 p-1 rounded transition-colors"
                                                 title="Eliminar este día"
                                             >

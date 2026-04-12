@@ -265,7 +265,7 @@ export function PlanProvider({ children }) {
                 console.log('☁️ Syncing PLAN to Firestore...');
                 setDoc(doc(db, 'users', user.uid, 'data', 'plan'), planData).catch(console.error);
                 pendingSaveRef.current = null;
-            }, 2000);
+            }, 800);
         }
     }, [planData, user]);
 
