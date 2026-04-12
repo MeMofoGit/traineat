@@ -173,5 +173,21 @@
         "post": "POST",
         "preLabel": "Pre-Entreno",
         "postLabel": "Post-Entreno"
+    },
+    "tutorial": {
+        "skip": "Saltar tutorial",
+        "next": "Siguiente",
+        "finish": "¡Empezar a usar TrainEat!",
+        "step": "{{current}} de {{total}}",
+        "home_title": "Tu centro de control",
+        "home_desc": "Desde aquí ves de un vistazo tu próxima comida, el entreno de hoy y tu progreso semanal. También puedes registrar tu peso con un solo toque.",
+        "diet_title": "Tu plan nutricional personalizado",
+        "diet_desc": "Cada comida se adapta por día de la semana. Puedes confirmar lo que comiste, registrar cambios y ver cómo afecta a tus macros en tiempo real.",
+        "fridge_title": "Tus productos reales",
+        "fridge_desc": "Escanea códigos de barras o haz fotos de etiquetas para añadir tus productos. La app los usa para sustituir alimentos genéricos y cuadrar macros automáticamente.",
+        "training_title": "Entrenamientos inteligentes",
+        "training_desc": "Rutinas por fase con timer de descanso, superseries y seguimiento de progreso. Cada serie completada se registra para que veas tu evolución.",
+        "profile_title": "Tu perfil y configuración",
+        "profile_desc": "Ajusta tus datos, comparte tu dieta con un nutricionista, cambia idioma o exporta tus datos. Todo bajo tu control."
     }
 }

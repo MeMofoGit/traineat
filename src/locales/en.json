@@ -173,5 +173,21 @@
         "post": "POST",
         "preLabel": "Pre-Workout",
         "postLabel": "Post-Workout"
+    },
+    "tutorial": {
+        "skip": "Skip tutorial",
+        "next": "Next",
+        "finish": "Start using TrainEat!",
+        "step": "{{current}} of {{total}}",
+        "home_title": "Your control center",
+        "home_desc": "See your next meal, today's workout, and weekly progress at a glance. Log your weight with a single tap.",
+        "diet_title": "Your personalized nutrition plan",
+        "diet_desc": "Each meal adapts per day of the week. Confirm what you ate, log changes, and see how it affects your macros in real time.",
+        "fridge_title": "Your real products",
+        "fridge_desc": "Scan barcodes or take photos of labels to add your products. The app uses them to replace generic foods and balance macros automatically.",
+        "training_title": "Smart workouts",
+        "training_desc": "Phase-based routines with rest timer, supersets, and progress tracking. Every completed set is logged so you can see your evolution.",
+        "profile_title": "Your profile & settings",
+        "profile_desc": "Adjust your data, share your diet with a nutritionist, change language, or export your data. Everything under your control."
     }
 }
