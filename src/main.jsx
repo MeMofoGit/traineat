@@ -19,3 +19,23 @@ createRoot(document.getElementById('root')).render(
         <App />
     </StrictMode>
 );
+
+// PWA update detection — muestra banner cuando hay nueva versión
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then((reg) => {
+        reg.addEventListener('updatefound', () => {
+            const newSW = reg.installing;
+            if (!newSW) return;
+            newSW.addEventListener('statechange', () => {
+                if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+                    // Nuevo SW activado — hay una versión nueva
+                    const bar = document.createElement('div');
+                    bar.className =
+                        'fixed bottom-20 inset-x-4 z-[200] bg-blue-600 text-white text-xs font-bold text-center py-3 px-4 rounded-xl shadow-2xl flex items-center justify-between';
+                    bar.innerHTML = `<span>✨ ${document.documentElement.lang === 'en' ? 'New version available' : 'Nueva versión disponible'}</span><button onclick="window.location.reload()" class="bg-white text-blue-600 px-3 py-1 rounded-lg text-xs font-bold">${document.documentElement.lang === 'en' ? 'Update' : 'Actualizar'}</button>`;
+                    document.body.appendChild(bar);
+                }
+            });
+        });
+    });
+}
