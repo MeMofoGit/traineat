@@ -18,3 +18,7 @@ export { ocrLabel } from './api/ocrLabel';
 
 // --- Scheduled / admin handlers (Fase 4) ---
 export { nightlyOFFSync, triggerOffSync } from './api/nightlyOFFSync';
+
+// --- Email handlers ---
+export { sendWelcomeEmailFn as sendWelcomeEmail } from './api/sendEmail';
+export { sendAccountDeletedEmailFn as sendAccountDeletedEmail } from './api/sendEmail';

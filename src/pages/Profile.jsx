@@ -525,6 +525,17 @@ function AccountSection({ authUser, signOut }) {
                         }
                         // plan
                         await dd(d(db, 'users', uid, 'data', 'plan')).catch(() => {});
+                        // Email de confirmación (antes de borrar auth para tener token)
+                        try {
+                            const { sendAccountDeletedEmail } = await import('../services/email');
+                            await sendAccountDeletedEmail(
+                                authUser.displayName || 'Usuario',
+                                authUser.email,
+                                isEn ? 'en' : 'es'
+                            );
+                        } catch {
+                            /* best-effort */
+                        }
                         // auth user
                         await authUser.delete();
                         localStorage.clear();

@@ -239,8 +239,9 @@ export default function Onboarding({ onFinish, onSave }) {
 
     const handleNext = () => {
         if (isLast) {
+            const userName = form.name.trim() || 'Atleta';
             onSave({
-                name: form.name.trim() || 'Atleta',
+                name: userName,
                 birthday: form.birthday,
                 gender: form.gender,
                 height: form.height ? parseFloat(form.height) : 175,
@@ -249,6 +250,10 @@ export default function Onboarding({ onFinish, onSave }) {
                 emailConsent: form.emailConsent,
                 emailConsentDate: form.emailConsent ? new Date().toISOString() : null,
                 termsAcceptedDate: new Date().toISOString(),
+            });
+            // Welcome email (best-effort, no bloquea el flujo)
+            import('../services/email').then(({ sendWelcomeEmail }) => {
+                sendWelcomeEmail(userName, isEn ? 'en' : 'es').catch(() => {});
             });
             onFinish();
         } else {
