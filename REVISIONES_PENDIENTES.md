@@ -114,3 +114,25 @@ Los strings principales de todas las páginas están migrados a `useTranslation(
 Migrar por componente, de mayor a menor impacto visual. Los JSON (`es.json`/`en.json`) ya tienen las traducciones preparadas para la mayoría — solo falta conectar `t('key')` en cada sitio.
 
 ---
+
+## Balanceo LP — probar a fondo toda la funcionalidad
+
+**Reportado**: 2026-04-12
+**Prioridad**: ALTA (funcionalidad core sin validar manualmente)
+
+### Pendiente de probar
+
+- [ ] **Botón "Balancear semana con Mi Nevera"**: aparece al final de Diet en modo Entreno si hay productos en Mi Nevera. Verificar que aparece, que ejecuta y que aplica cambios.
+- [ ] **`balanceMeal`**: sustitución individual por comida con LP (YALPS). Verificar que sustituye genéricos por Mi Nevera, ajusta cantidades, respeta tolerancia 10%.
+- [ ] **`balanceDay`**: propagación de déficit intra-día. Si desayuno excede target, las comidas siguientes reducen su target proporcionalmente.
+- [ ] **`balanceWeek`**: propagación cross-day. Si lunes tiene exceso, martes-domingo compensan.
+- [ ] **Mínimos de seguridad**: verificar que no baja de 50kcal/comida, 800kcal/día, 50g prot/día.
+- [ ] **Botón "Rellenar con Mi Nevera" por comida**: usa LP cuando hay mealTarget disponible, fallback a algoritmo simple sin targets.
+- [ ] **Edge cases**: Mi Nevera vacía, comidas sin items, targets a 0, solo 1 día con comidas.
+- [ ] **Visual**: items de Mi Nevera con borde cyan vs genéricos en slate.
+
+### Referencia
+
+Los test cases detallados están en `TEST_CASES.md` secciones 1, 2 y 3.
+
+---
