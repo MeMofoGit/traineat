@@ -56,6 +56,7 @@ export default function Onboarding({ onFinish, onSave }) {
         activity: 'moderate',
         goalType: 'recomp',
         emailConsent: false,
+        termsAccepted: false,
     });
 
     const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
@@ -177,8 +178,47 @@ export default function Onboarding({ onFinish, onSave }) {
                         </button>
                     ))}
                 </div>
-                {/* Consentimiento comunicaciones */}
-                <label className="flex items-start gap-3 mt-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer">
+                {/* T&C obligatorio */}
+                <label
+                    className={`flex items-start gap-3 mt-4 p-3 rounded-xl border cursor-pointer ${form.termsAccepted ? 'bg-blue-950/20 border-blue-800/30' : 'bg-slate-800/50 border-rose-800/30'}`}
+                >
+                    <input
+                        type="checkbox"
+                        checked={form.termsAccepted}
+                        onChange={(e) => set('termsAccepted', e.target.checked)}
+                        className="mt-0.5 accent-blue-500"
+                    />
+                    <span className="text-[11px] text-slate-300 leading-relaxed">
+                        {isEn ? (
+                            <>
+                                He leído y acepto los{' '}
+                                <a href="/terms" target="_blank" className="text-blue-400 underline">
+                                    Terms of Service
+                                </a>{' '}
+                                y la{' '}
+                                <a href="/privacy" target="_blank" className="text-blue-400 underline">
+                                    Privacy Policy
+                                </a>
+                                . <span className="text-rose-400">*</span>
+                            </>
+                        ) : (
+                            <>
+                                He leído y acepto los{' '}
+                                <a href="/terms" target="_blank" className="text-blue-400 underline">
+                                    Términos de Servicio
+                                </a>{' '}
+                                y la{' '}
+                                <a href="/privacy" target="_blank" className="text-blue-400 underline">
+                                    Política de Privacidad
+                                </a>
+                                . <span className="text-rose-400">*</span>
+                            </>
+                        )}
+                    </span>
+                </label>
+
+                {/* Marketing opcional */}
+                <label className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer">
                     <input
                         type="checkbox"
                         checked={form.emailConsent}
@@ -187,8 +227,8 @@ export default function Onboarding({ onFinish, onSave }) {
                     />
                     <span className="text-[11px] text-slate-400 leading-relaxed">
                         {isEn
-                            ? 'I agree to receive nutrition tips, updates and product news by email. You can unsubscribe at any time.'
-                            : 'Acepto recibir consejos de nutrición, actualizaciones y novedades por email. Puedes darte de baja en cualquier momento.'}
+                            ? 'I want to receive personalized nutrition tips and product updates by email. Unsubscribe anytime.'
+                            : 'Quiero recibir consejos de nutrición personalizados y novedades del producto por email. Baja en cualquier momento.'}
                     </span>
                 </label>
             </div>
@@ -196,7 +236,7 @@ export default function Onboarding({ onFinish, onSave }) {
     ];
 
     const isLast = step === steps.length - 1;
-    const canNext = step === 0 || (step === 1 && form.name.trim()) || step >= 2;
+    const canNext = step === 0 || (step === 1 && form.name.trim()) || step === 2 || (step === 3 && form.termsAccepted);
 
     const handleNext = () => {
         if (isLast) {
@@ -209,6 +249,7 @@ export default function Onboarding({ onFinish, onSave }) {
                 goalType: form.goalType,
                 emailConsent: form.emailConsent,
                 emailConsentDate: form.emailConsent ? new Date().toISOString() : null,
+                termsAcceptedDate: new Date().toISOString(),
             });
             onFinish();
         } else {
