@@ -100,7 +100,7 @@ export default function Training() {
 
     const getRoutine = (phase, day) => {
         const p = plan.routines[phase];
-        if (!p) return { label: 'Día Nuevo', focus: 'Sin objetivo', exercises: [] };
+        if (!p) return { label: t('training.rest'), focus: '', exercises: [] };
         return p[day] || { label: 'Descanso', exercises: [] };
     };
 
@@ -315,7 +315,7 @@ export default function Training() {
                             onClick={() => setMovingExIndex(null)}
                             className="mt-4 w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 font-bold transition-colors"
                         >
-                            Cancelar
+                            {t('common.cancel')}
                         </button>
                     </div>
                 </div>
