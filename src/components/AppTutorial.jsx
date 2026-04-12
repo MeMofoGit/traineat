@@ -21,11 +21,15 @@ export default function AppTutorial({ onFinish }) {
     const current = STEPS[step];
     const isLast = step === STEPS.length - 1;
 
-    // Navigate to the route for the current step
+    // Navigate to the route for the current step + set CSS var for nav highlight
     useEffect(() => {
         if (current.route && location.pathname !== current.route) {
             navigate(current.route, { replace: true });
         }
+        document.documentElement.dataset.tutorialStep = String(step);
+        return () => {
+            delete document.documentElement.dataset.tutorialStep;
+        };
     }, [step, current.route, navigate, location.pathname]);
 
     function handleNext() {
@@ -48,10 +52,14 @@ export default function AppTutorial({ onFinish }) {
 
     return createPortal(
         <div className="fixed inset-0 z-[90] pointer-events-none">
-            {/* Semi-transparent overlay — lets real UI show through */}
-            <div className="absolute inset-0 bg-slate-950/60 pointer-events-auto" onClick={handleNext} />
+            {/* Overlay — NO cubre el nav */}
+            <div
+                className="absolute inset-x-0 top-0 bg-slate-950/60 pointer-events-auto"
+                style={{ bottom: 'var(--nav-height, 72px)' }}
+                onClick={handleNext}
+            />
 
-            {/* Bottom card */}
+            {/* Bottom card — encima del nav */}
             <div
                 className="absolute bottom-0 inset-x-0 pointer-events-auto"
                 style={{ paddingBottom: 'calc(var(--nav-height, 72px) + 8px)' }}

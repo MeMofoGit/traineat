@@ -731,7 +731,8 @@ _Bloqueante para cualquier release pública. La fase más densa._
 
 - ☐ **C6.38** Sentry release tracking + source maps de producción.
 - ☐ **C6.39** Firebase Analytics o PostHog: eventos clave (signup, plan creado, customFood creado, subscription started, churn).
-- ☐ **C6.40** Email transaccional (welcome, password reset, payment failed) con Firebase Extension o Resend.
+- ☐ **C6.40** Email transaccional (welcome, password reset, payment failed, account deleted) con Firebase Extension o Resend.
+- ☐ **C6.40b** Email marketing (newsletters, tips nutricionales, novedades) — requiere **consentimiento explícito opt-in** (RGPD Art. 6/7). Implementar checkbox en registro/perfil. NO enviar emails comerciales sin opt-in. El email de confirmación de eliminación de cuenta es transaccional (no requiere opt-in). Servicio: Resend, Mailgun o Firebase Extension `trigger-email`.
 - ☐ **C6.41** Customer support: formulario `/contact` o link a email. Auto-respuesta.
 - ☐ **C6.42** Página "Ayuda / FAQ" con preguntas comunes.
 - ☐ **C6.43** Admin tool: panel interno (custom claims auth) para inspeccionar usuarios reportando bugs.

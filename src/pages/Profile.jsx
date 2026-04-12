@@ -441,12 +441,30 @@ function AccountSection({ authUser, signOut }) {
             <button
                 onClick={async () => {
                     const isEn = i18n?.language === 'en';
+                    // Paso 1: confirmación simple
+                    if (
+                        !confirm(
+                            isEn
+                                ? 'Are you sure you want to delete your account? This cannot be undone.'
+                                : '¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.'
+                        )
+                    )
+                        return;
+                    // Paso 2: escribir palabra de confirmación
                     const msg = isEn
-                        ? 'This will permanently delete your account and ALL your data (plans, foods, history). This action CANNOT be undone. Type DELETE to confirm:'
-                        : 'Esto eliminará permanentemente tu cuenta y TODOS tus datos (planes, alimentos, historial). Esta acción NO se puede deshacer. Escribe ELIMINAR para confirmar:';
+                        ? 'Type DELETE to permanently delete your account and ALL data:'
+                        : 'Escribe ELIMINAR para borrar permanentemente tu cuenta y TODOS tus datos:';
                     const expected = isEn ? 'DELETE' : 'ELIMINAR';
                     const input = prompt(msg);
-                    if (input !== expected) return;
+                    if (input == null) return; // canceló el prompt
+                    if (input !== expected) {
+                        toast.error(
+                            isEn
+                                ? `You typed "${input}" — expected "${expected}". Account NOT deleted.`
+                                : `Escribiste "${input}" — se esperaba "${expected}". Cuenta NO eliminada.`
+                        );
+                        return;
+                    }
                     try {
                         const uid = authUser.uid;
                         // Borrar subcolecciones y datos
@@ -474,6 +492,7 @@ function AccountSection({ authUser, signOut }) {
                         // auth user
                         await authUser.delete();
                         localStorage.clear();
+                        toast.success(isEn ? 'Account deleted. Goodbye!' : 'Cuenta eliminada. ¡Hasta pronto!');
                     } catch (err) {
                         if (err.code === 'auth/requires-recent-login') {
                             toast.error(
