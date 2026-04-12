@@ -241,6 +241,28 @@ export default function Profile() {
             <ShareSection authUser={authUser} />
 
             {/* Idioma */}
+            {/* Consentimiento comunicaciones */}
+            <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={!!plan.user?.emailConsent}
+                        onChange={(e) => {
+                            updateUser({
+                                emailConsent: e.target.checked,
+                                emailConsentDate: e.target.checked ? new Date().toISOString() : null,
+                            });
+                        }}
+                        className="mt-0.5 accent-blue-500"
+                    />
+                    <span className="text-[11px] text-slate-400 leading-relaxed">
+                        {t('nav.home') === 'Home'
+                            ? 'I agree to receive nutrition tips, updates and product news by email. You can unsubscribe at any time.'
+                            : 'Acepto recibir consejos de nutrición, actualizaciones y novedades por email. Puedes darte de baja en cualquier momento.'}
+                    </span>
+                </label>
+            </div>
+
             <LanguageSelector />
 
             {/* Acerca de */}

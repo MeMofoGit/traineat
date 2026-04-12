@@ -55,6 +55,7 @@ export default function Onboarding({ onFinish, onSave }) {
         height: '',
         activity: 'moderate',
         goalType: 'recomp',
+        emailConsent: false,
     });
 
     const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
@@ -176,6 +177,20 @@ export default function Onboarding({ onFinish, onSave }) {
                         </button>
                     ))}
                 </div>
+                {/* Consentimiento comunicaciones */}
+                <label className="flex items-start gap-3 mt-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={form.emailConsent}
+                        onChange={(e) => set('emailConsent', e.target.checked)}
+                        className="mt-0.5 accent-blue-500"
+                    />
+                    <span className="text-[11px] text-slate-400 leading-relaxed">
+                        {isEn
+                            ? 'I agree to receive nutrition tips, updates and product news by email. You can unsubscribe at any time.'
+                            : 'Acepto recibir consejos de nutrición, actualizaciones y novedades por email. Puedes darte de baja en cualquier momento.'}
+                    </span>
+                </label>
             </div>
         ),
     ];
@@ -192,6 +207,8 @@ export default function Onboarding({ onFinish, onSave }) {
                 height: form.height ? parseFloat(form.height) : 175,
                 activity: form.activity,
                 goalType: form.goalType,
+                emailConsent: form.emailConsent,
+                emailConsentDate: form.emailConsent ? new Date().toISOString() : null,
             });
             onFinish();
         } else {
