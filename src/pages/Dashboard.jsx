@@ -17,6 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useSchedule } from '../hooks/useSchedule';
 import { usePlan } from '../hooks/usePlan';
+import { useMacros } from '../hooks/useMacros';
 import { assignMealRoles, TIMING_ROLES } from '../utils/nutrientTiming';
 import { useTranslation } from 'react-i18next';
 
@@ -67,6 +68,9 @@ export default function Dashboard() {
 
             {/* Weight badge */}
             <WeightBadge plan={plan} />
+
+            {/* Today's nutrition summary */}
+            <TodayNutrition plan={plan} navigate={navigate} t={t} />
 
             {/* Phase Selector */}
             <PhaseSelector phases={plan.phases || []} activeId={plan.activePhaseId} onChange={setActivePhaseId} />
@@ -648,5 +652,98 @@ function WeightBadge({ plan }) {
                 {new Date(latest.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
             </span>
         </button>
+    );
+}
+
+function TodayNutrition({ plan, navigate, t }) {
+    const { dailyConsumed, targets } = useMacros(true);
+    const isEn = t('nav.home') === 'Home';
+    const todayKey = new Date().toISOString().split('T')[0];
+    const todayLog = plan.dailyLog?.[todayKey] || {};
+    const mealSlots = plan.schedule?.default?.filter((s) => s.type === 'meal') || [];
+
+    const confirmed = mealSlots.filter(
+        (s) => todayLog[s.id]?.status === 'confirmed' || todayLog[s.id]?.status === 'modified'
+    ).length;
+    const total = mealSlots.length;
+
+    const calPct =
+        targets.calories > 0 ? Math.min(100, Math.round((dailyConsumed.calories / targets.calories) * 100)) : 0;
+
+    return (
+        <button
+            onClick={() => navigate('/diet')}
+            className="w-full bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 hover:border-blue-500/30 transition-all text-left"
+        >
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">
+                    {isEn ? "Today's nutrition" : 'Nutrición de hoy'}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                    {confirmed}/{total} {isEn ? 'logged' : 'registradas'}
+                </span>
+            </div>
+
+            {/* Calories bar */}
+            <div className="mb-2">
+                <div className="flex justify-between text-xs mb-1">
+                    <span className="text-white font-bold">
+                        {dailyConsumed.calories}{' '}
+                        <span className="text-slate-500 font-normal">/ {targets.calories} kcal</span>
+                    </span>
+                    <span className="text-slate-500">{calPct}%</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                        className={`h-full rounded-full transition-all ${calPct > 100 ? 'bg-red-500' : calPct > 80 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                        style={{ width: `${Math.min(calPct, 100)}%` }}
+                    />
+                </div>
+            </div>
+
+            {/* Macro pills */}
+            <div className="flex gap-2">
+                <MacroPill label="P" current={dailyConsumed.protein} target={targets.protein} color="rose" />
+                <MacroPill label="C" current={dailyConsumed.carbs} target={targets.carbs} color="amber" />
+                <MacroPill label="G" current={dailyConsumed.fat} target={targets.fat} color="yellow" />
+            </div>
+
+            {/* Meal dots */}
+            <div className="flex gap-1.5 mt-3 justify-center">
+                {mealSlots.map((s) => {
+                    const log = todayLog[s.id];
+                    return (
+                        <div
+                            key={s.id}
+                            className={`w-2 h-2 rounded-full ${
+                                log?.status === 'confirmed'
+                                    ? 'bg-emerald-500'
+                                    : log?.status === 'modified'
+                                      ? 'bg-amber-500'
+                                      : 'bg-slate-700'
+                            }`}
+                            title={s.label}
+                        />
+                    );
+                })}
+            </div>
+        </button>
+    );
+}
+
+function MacroPill({ label, current, target, color }) {
+    const colors = {
+        rose: 'text-rose-400 bg-rose-900/20',
+        amber: 'text-amber-400 bg-amber-900/20',
+        yellow: 'text-yellow-400 bg-yellow-900/20',
+    };
+    return (
+        <div className={`flex-1 rounded-lg px-2 py-1.5 text-center ${colors[color]}`}>
+            <div className="text-[10px] font-bold">{label}</div>
+            <div className="text-xs font-mono">
+                {current}
+                <span className="text-slate-600">/{target}g</span>
+            </div>
+        </div>
     );
 }
