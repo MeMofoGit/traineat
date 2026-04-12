@@ -16,6 +16,8 @@ import HealthDisclaimer from './components/HealthDisclaimer';
 import { useDisclaimer } from './hooks/useDisclaimer';
 import Onboarding from './components/Onboarding';
 import { useOnboarding } from './hooks/useOnboarding';
+import AppTutorial from './components/AppTutorial';
+import { useTutorial } from './hooks/useTutorial';
 
 import { PlanProvider, usePlan } from './hooks/usePlan';
 import { ToastProvider } from './components/Toast';
@@ -45,6 +47,7 @@ function AuthGate() {
     const { authUser, authReady } = usePlan();
     const { accepted, accept } = useDisclaimer();
     const { done: onboardingDone, finish: finishOnboarding } = useOnboarding();
+    const { done: tutorialDone, finish: finishTutorial } = useTutorial();
     const { updateUser } = usePlan();
 
     if (!authReady) {
@@ -62,7 +65,16 @@ function AuthGate() {
     return (
         <>
             {!accepted && <HealthDisclaimer onAccept={accept} />}
-            {accepted && !onboardingDone && <Onboarding onFinish={finishOnboarding} onSave={updateUser} />}
+            {accepted && !onboardingDone && (
+                <Onboarding
+                    onFinish={() => {
+                        finishOnboarding();
+                        window.history.replaceState(null, '', '/');
+                    }}
+                    onSave={updateUser}
+                />
+            )}
+            {accepted && onboardingDone && !tutorialDone && <AppTutorial onFinish={finishTutorial} />}
             <Routes>
                 <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
