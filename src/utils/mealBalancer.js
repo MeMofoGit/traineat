@@ -196,6 +196,118 @@ function getFoodMacrosPer1(food) {
     };
 }
 
+/**
+ * Balancea todas las comidas de un día completo. Si una comida no puede
+ * cuadrar por sí sola, el déficit se propaga a las siguientes.
+ *
+ * @param {Array<{ slotId: string, items: Array, target: object }>} meals
+ * @param {Array} customFoods
+ * @param {{ calories: number, protein: number, carbs: number, fat: number }} dailyTarget
+ * @returns {{ meals: Array<{ slotId: string, items: Array, substitutions: Array }>, deficit: object }}
+ */
+export function balanceDay(meals, customFoods, dailyTarget) {
+    if (!meals?.length || !dailyTarget) return { meals, deficit: zero() };
+
+    const results = [];
+    const accum = zero(); // macros acumulados reales
+
+    for (let i = 0; i < meals.length; i++) {
+        const meal = meals[i];
+        if (!meal.target || !meal.items?.length) {
+            results.push({ slotId: meal.slotId, items: meal.items || [], substitutions: [] });
+            continue;
+        }
+
+        // Ajustar target de esta comida compensando déficit/superávit acumulado
+        const remainingMeals = meals.length - i;
+        const adjustedTarget = {
+            calories: Math.max(50, meal.target.calories - accum.calories / remainingMeals),
+            protein: Math.max(5, meal.target.protein - accum.protein / remainingMeals),
+            carbs: Math.max(5, meal.target.carbs - accum.carbs / remainingMeals),
+            fat: Math.max(2, meal.target.fat - accum.fat / remainingMeals),
+        };
+
+        const result = balanceMeal(meal.items, customFoods, adjustedTarget, { tolerance: 0.15 });
+
+        // Calcular lo que realmente aporta esta comida tras el balanceo
+        const actual = sumItems(result.items);
+        accum.calories += actual.calories - meal.target.calories;
+        accum.protein += actual.protein - meal.target.protein;
+        accum.carbs += actual.carbs - meal.target.carbs;
+        accum.fat += actual.fat - meal.target.fat;
+
+        results.push({ slotId: meal.slotId, items: result.items, substitutions: result.substitutions });
+    }
+
+    return { meals: results, deficit: accum };
+}
+
+/**
+ * Balancea una semana completa. Si un día tiene déficit, ajusta el target
+ * de los días siguientes para compensar.
+ *
+ * @param {Array<{ dayName: string, meals: Array }>} days - 7 días con sus comidas
+ * @param {Array} customFoods
+ * @param {{ calories: number, protein: number, carbs: number, fat: number }} dailyTarget
+ * @returns {Array<{ dayName: string, meals: Array, deficit: object }>}
+ */
+export function balanceWeek(days, customFoods, dailyTarget) {
+    if (!days?.length) return [];
+
+    const results = [];
+    const weekAccum = zero();
+
+    for (let d = 0; d < days.length; d++) {
+        const day = days[d];
+        const remainingDays = days.length - d;
+
+        // Ajustar target diario compensando acumulado de días anteriores
+        const adjustedDaily = {
+            calories: Math.max(800, dailyTarget.calories - weekAccum.calories / remainingDays),
+            protein: Math.max(50, dailyTarget.protein - weekAccum.protein / remainingDays),
+            carbs: Math.max(50, dailyTarget.carbs - weekAccum.carbs / remainingDays),
+            fat: Math.max(20, dailyTarget.fat - weekAccum.fat / remainingDays),
+        };
+
+        const { meals: balanced, deficit } = balanceDay(day.meals, customFoods, adjustedDaily);
+
+        weekAccum.calories += deficit.calories;
+        weekAccum.protein += deficit.protein;
+        weekAccum.carbs += deficit.carbs;
+        weekAccum.fat += deficit.fat;
+
+        results.push({ dayName: day.dayName, meals: balanced, deficit });
+    }
+
+    return results;
+}
+
+/** Suma macros de una lista de items */
+function sumItems(items) {
+    const sum = zero();
+    for (const item of items || []) {
+        const food = FOOD_DATABASE.find((f) => f.id === item.foodId);
+        if (!food?.macros) continue;
+        const m = getFoodMacrosPer1(food);
+        if (!m) continue;
+        const qty = parseFloat(item.quantity) || 0;
+        sum.calories += m.calories * qty;
+        sum.protein += m.protein * qty;
+        sum.carbs += m.carbs * qty;
+        sum.fat += m.fat * qty;
+    }
+    return {
+        calories: Math.round(sum.calories),
+        protein: Math.round(sum.protein),
+        carbs: Math.round(sum.carbs),
+        fat: Math.round(sum.fat),
+    };
+}
+
+function zero() {
+    return { calories: 0, protein: 0, carbs: 0, fat: 0 };
+}
+
 function findCustom(foodId, customFoods) {
     return (customFoods || []).find((f) => f.id === foodId) || null;
 }
