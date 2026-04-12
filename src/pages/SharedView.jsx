@@ -198,14 +198,7 @@ export default function SharedView() {
                                         { meals: newNotes },
                                         { merge: true }
                                     );
-                                    // Guardar también para el usuario (doc separado con escritura pública)
-                                    if (tokenInfo?.uid) {
-                                        await setDoc(
-                                            doc(db, 'users', tokenInfo.uid, 'data', 'nutritionistNotes'),
-                                            { meals: newNotes, updatedAt: new Date().toISOString() },
-                                            { merge: true }
-                                        );
-                                    }
+                                    // Notas solo en _shareTokens — Diet las lee de ahí
                                 }}
                             />
                         );

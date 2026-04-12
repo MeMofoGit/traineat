@@ -34,7 +34,9 @@ import { balanceMeal } from '../utils/mealBalancer';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
 import { useTranslation } from 'react-i18next';
-import { createShareToken } from '../services/shareTokens';
+import { createShareToken, listShareTokens } from '../services/shareTokens';
+import { db } from '../firebase';
+import { doc as fDoc, getDoc as fGetDoc } from 'firebase/firestore';
 
 function StructuredMealEditor({
     initialItems,
@@ -1109,7 +1111,7 @@ function SharePopup({ onClose, toast, t }) {
     }
 
     return (
-        <div className="absolute right-0 top-12 z-50 w-72 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-x-4 top-16 z-50 max-w-sm mx-auto bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                     <Share2 size={13} /> {isEn ? 'Share with nutritionist' : 'Compartir con nutricionista'}
@@ -1154,19 +1156,28 @@ export default function Diet() {
     const toast = useToast();
     const todayAutoSelected = React.useRef(false);
 
-    // Notas del nutricionista — doc separado users/{uid}/data/nutritionistNotes
+    // Notas del nutricionista — leídas de tokens activos del usuario
     const [nutritionistNotes, setNutritionistNotes] = React.useState({});
     const { authUser } = usePlan();
     React.useEffect(() => {
         if (!authUser?.uid) return;
-        import('firebase/firestore').then(({ doc: d, onSnapshot }) => {
-            import('../firebase').then(({ db }) => {
-                const unsub = onSnapshot(d(db, 'users', authUser.uid, 'data', 'nutritionistNotes'), (snap) => {
-                    if (snap.exists()) setNutritionistNotes(snap.data()?.meals || {});
-                });
-                return () => unsub();
-            });
-        });
+        let cancelled = false;
+        (async () => {
+            try {
+                const tokens = await listShareTokens(authUser.uid);
+                const merged = {};
+                for (const tk of tokens) {
+                    const snap = await fGetDoc(fDoc(db, '_shareTokens', tk.tokenId, 'data', 'notes'));
+                    if (snap.exists()) Object.assign(merged, snap.data()?.meals || {});
+                }
+                if (!cancelled && Object.keys(merged).length > 0) setNutritionistNotes(merged);
+            } catch {
+                /* ignore */
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [authUser?.uid]);
 
     // Auto-seleccionar la opción del día actual al montar

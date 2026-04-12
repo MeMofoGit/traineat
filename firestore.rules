@@ -39,8 +39,7 @@ service cloud.firestore {
 
       match /data/{docId} {
         allow read: if true;
-        // nutritionistNotes: escritura pública (vía SharedView con token válido)
-        allow write: if isOwner(uid) || docId == 'nutritionistNotes';
+        allow write: if isOwner(uid);
       }
       match /customFoods/{foodId} {
         allow read: if true;
@@ -83,9 +82,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAuthed();
 
-      // Notas del nutricionista — escritura pública (el token valida en cliente)
+      // Notas del nutricionista — solo lectura pública + escritura limitada
+      // El tokenId (UUID) actúa como secreto: no adivinable.
+      // Restricción: solo docs de notas, tamaño max 10KB.
       match /data/{docId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if docId == 'notes'
+                     && request.resource.size < 10240;
       }
     }
   }
