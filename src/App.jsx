@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import * as Sentry from '@sentry/react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
-import Diet from './pages/Diet';
-import Training from './pages/Training';
-import Profile from './pages/Profile';
-import Fridge from './pages/Fridge';
-import Auth from './pages/Auth';
-import About from './pages/About';
-import Privacy from './pages/Privacy';
-import Terms from './pages/Terms';
-import SharedView from './pages/SharedView';
+import { Loader2 } from 'lucide-react';
 import Layout from './components/Layout';
+
+// Lazy load pages — cada una en su chunk separado
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Diet = lazy(() => import('./pages/Diet'));
+const Training = lazy(() => import('./pages/Training'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Fridge = lazy(() => import('./pages/Fridge'));
+const Auth = lazy(() => import('./pages/Auth'));
+const About = lazy(() => import('./pages/About'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const SharedView = lazy(() => import('./pages/SharedView'));
 import HealthDisclaimer from './components/HealthDisclaimer';
 import { useDisclaimer } from './hooks/useDisclaimer';
 import Onboarding from './components/Onboarding';
@@ -21,7 +24,6 @@ import { useTutorial } from './hooks/useTutorial';
 
 import { PlanProvider, usePlan } from './hooks/usePlan';
 import { ToastProvider } from './components/Toast';
-import { Loader2 } from 'lucide-react';
 
 function FallbackUI() {
     return (
@@ -75,19 +77,27 @@ function AuthGate() {
                 />
             )}
             {accepted && onboardingDone && !tutorialDone && <AppTutorial onFinish={finishTutorial} />}
-            <Routes>
-                <Route path="/" element={<Layout />}>
-                    <Route index element={<Dashboard />} />
-                    <Route path="diet" element={<Diet />} />
-                    <Route path="fridge" element={<Fridge />} />
-                    <Route path="training" element={<Training />} />
-                    <Route path="profile" element={<Profile />} />
-                    <Route path="about" element={<About />} />
-                    <Route path="privacy" element={<Privacy />} />
-                    <Route path="terms" element={<Terms />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Route>
-            </Routes>
+            <Suspense
+                fallback={
+                    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                        <Loader2 size={24} className="text-blue-500 animate-spin" />
+                    </div>
+                }
+            >
+                <Routes>
+                    <Route path="/" element={<Layout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="diet" element={<Diet />} />
+                        <Route path="fridge" element={<Fridge />} />
+                        <Route path="training" element={<Training />} />
+                        <Route path="profile" element={<Profile />} />
+                        <Route path="about" element={<About />} />
+                        <Route path="privacy" element={<Privacy />} />
+                        <Route path="terms" element={<Terms />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Route>
+                </Routes>
+            </Suspense>
         </>
     );
 }
@@ -98,10 +108,18 @@ function App() {
             <PlanProvider>
                 <ToastProvider>
                     <Router>
-                        <Routes>
-                            <Route path="/shared/:tokenId" element={<SharedView />} />
-                            <Route path="/*" element={<AuthGate />} />
-                        </Routes>
+                        <Suspense
+                            fallback={
+                                <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                                    <Loader2 size={24} className="text-blue-500 animate-spin" />
+                                </div>
+                            }
+                        >
+                            <Routes>
+                                <Route path="/shared/:tokenId" element={<SharedView />} />
+                                <Route path="/*" element={<AuthGate />} />
+                            </Routes>
+                        </Suspense>
                     </Router>
                 </ToastProvider>
             </PlanProvider>
