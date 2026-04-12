@@ -708,22 +708,18 @@ function TodayNutrition({ plan, navigate, t }) {
                 <MacroPill label="G" current={dailyConsumed.fat} target={targets.fat} color="yellow" />
             </div>
 
-            {/* Meal dots */}
-            <div className="flex gap-1.5 mt-3 justify-center">
+            {/* Meal status inline */}
+            <div className="flex gap-2 mt-3">
                 {mealSlots.map((s) => {
                     const log = todayLog[s.id];
+                    const done = log?.status === 'confirmed' || log?.status === 'modified';
                     return (
                         <div
                             key={s.id}
-                            className={`w-2 h-2 rounded-full ${
-                                log?.status === 'confirmed'
-                                    ? 'bg-emerald-500'
-                                    : log?.status === 'modified'
-                                      ? 'bg-amber-500'
-                                      : 'bg-slate-700'
-                            }`}
-                            title={s.label}
-                        />
+                            className={`flex-1 text-center py-1 rounded-lg text-[9px] font-bold ${done ? 'bg-emerald-900/20 text-emerald-400' : 'bg-slate-800 text-slate-600'}`}
+                        >
+                            {s.label?.slice(0, 4)}
+                        </div>
                     );
                 })}
             </div>

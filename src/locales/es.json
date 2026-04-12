@@ -103,7 +103,14 @@
         "restTimer": "Descanso",
         "overtime": "¡Tiempo pasado!",
         "noRest": "SIN DESCANSO",
-        "superset": "SUPERSERIE"
+        "superset": "SUPERSERIE",
+        "trainToday": "Entrenar hoy",
+        "skip": "Saltar",
+        "alreadyDone": "Ya lo hice",
+        "pendingFrom": "Pendiente del {{day}}",
+        "logSets": "Registrar tiempos y series",
+        "startToMark": "Inicia el entreno para marcar series",
+        "exercises": "Ejercicios"
     },
     "profile": {
         "title": "Mis Datos",

@@ -403,7 +403,9 @@ export default function Training() {
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="text-sm font-bold text-amber-200">{firstPending.routineLabel}</div>
-                            <div className="text-xs text-amber-200/60">Pendiente del {firstPending.label}</div>
+                            <div className="text-xs text-amber-200/60">
+                                {t('training.pendingFrom', { day: firstPending.label })}
+                            </div>
                         </div>
                     </div>
                     <div className="flex gap-2">
@@ -414,19 +416,19 @@ export default function Training() {
                             }}
                             className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
                         >
-                            <Play size={12} fill="currentColor" /> Entrenar hoy
+                            <Play size={12} fill="currentColor" /> {t('training.trainToday')}
                         </button>
                         <button
                             onClick={() => markSkipped(firstPending.dayId)}
                             className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5"
                         >
-                            <SkipForward size={12} /> Saltar
+                            <SkipForward size={12} /> {t('training.skip')}
                         </button>
                         <button
                             onClick={() => markDoneElsewhere(firstPending.dayId)}
                             className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5"
                         >
-                            <CheckCircle2 size={12} /> Ya lo hice
+                            <CheckCircle2 size={12} /> {t('training.alreadyDone')}
                         </button>
                     </div>
                 </div>
@@ -593,7 +595,7 @@ export default function Training() {
                                             />
                                         </div>
                                         <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                                            {completedCount}/{totalSets} series
+                                            {completedCount}/{totalSets} {t('training.sets')}
                                         </span>
                                     </div>
                                 ) : null;
@@ -640,7 +642,7 @@ export default function Training() {
                     </div>
                     <div className="text-left">
                         <div className="text-white font-bold text-lg leading-none">Empezar Entreno</div>
-                        <div className="text-blue-100 text-xs text-opacity-80">Registrar tiempos y series</div>
+                        <div className="text-blue-100 text-xs text-opacity-80">{t('training.logSets')}</div>
                     </div>
                 </button>
             )}
@@ -834,7 +836,7 @@ export default function Training() {
                                     </div>
                                     {!plan.activeSession && !completedSession && (
                                         <p className="text-[10px] text-slate-500 mt-2 italic">
-                                            Inicia el entreno para marcar series.
+                                            {t('training.startToMark')}
                                         </p>
                                     )}
                                 </div>

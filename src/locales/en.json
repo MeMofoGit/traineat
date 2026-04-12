@@ -103,7 +103,14 @@
         "restTimer": "Rest",
         "overtime": "Time's up!",
         "noRest": "NO REST",
-        "superset": "SUPERSET"
+        "superset": "SUPERSET",
+        "trainToday": "Train today",
+        "skip": "Skip",
+        "alreadyDone": "Already done",
+        "pendingFrom": "Pending from {{day}}",
+        "logSets": "Log times and sets",
+        "startToMark": "Start workout to mark sets",
+        "exercises": "Exercises"
     },
     "profile": {
         "title": "My Profile",
