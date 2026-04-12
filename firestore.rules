@@ -81,6 +81,11 @@ service cloud.firestore {
     match /_shareTokens/{tokenId} {
       allow read: if true;
       allow write: if isAuthed();
+
+      // Notas del nutricionista — escritura pública (el token valida en cliente)
+      match /data/{docId} {
+        allow read, write: if true;
+      }
     }
   }
 }

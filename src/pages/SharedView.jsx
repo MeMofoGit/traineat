@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
-import { Loader2, Dumbbell, AlertTriangle, ChefHat, Flame, User, Target, Activity, Ruler } from 'lucide-react';
+import {
+    Loader2,
+    Dumbbell,
+    AlertTriangle,
+    ChefHat,
+    Flame,
+    User,
+    Target,
+    Activity,
+    Ruler,
+    MessageSquare,
+    Send,
+    Check,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { sumMacrosPure, findFood } from '../hooks/useMacros';
 
@@ -31,6 +44,7 @@ export default function SharedView() {
     const [plan, setPlan] = useState(null);
     const [customFoods, setCustomFoods] = useState([]);
     const [tokenInfo, setTokenInfo] = useState(null);
+    const [notes, setNotes] = useState({}); // { mealId: "nota del nutricionista" }
 
     useEffect(() => {
         loadSharedData();
@@ -62,6 +76,10 @@ export default function SharedView() {
 
             const foodsSnap = await getDocs(query(collection(db, 'users', token.uid, 'customFoods'), orderBy('name')));
             setCustomFoods(foodsSnap.docs.map((d) => d.data()));
+
+            // Cargar notas del nutricionista
+            const notesDoc = await getDoc(doc(db, '_shareTokens', tokenId, 'data', 'notes')).catch(() => null);
+            if (notesDoc?.exists()) setNotes(notesDoc.data()?.meals || {});
         } catch (err) {
             console.error('SharedView error:', err);
             setError(isEn ? 'Error loading data' : 'Error al cargar los datos');
@@ -169,6 +187,17 @@ export default function SharedView() {
                                 meal={meal}
                                 customFoodsMap={customFoodsMap}
                                 isEn={isEn}
+                                canEdit={tokenInfo?.permissions === 'readwrite'}
+                                note={notes[slot.id] || ''}
+                                onSaveNote={async (text) => {
+                                    const newNotes = { ...notes, [slot.id]: text };
+                                    setNotes(newNotes);
+                                    await setDoc(
+                                        doc(db, '_shareTokens', tokenId, 'data', 'notes'),
+                                        { meals: newNotes },
+                                        { merge: true }
+                                    );
+                                }}
                             />
                         );
                     })}
@@ -183,7 +212,7 @@ export default function SharedView() {
     );
 }
 
-function SharedMealCard({ slot, meal, customFoodsMap, isEn }) {
+function SharedMealCard({ slot, meal, customFoodsMap, isEn, canEdit, note, onSaveNote }) {
     const [selectedDay, setSelectedDay] = useState(meal.selectedOptionIndex || 0);
     const options = meal.options || [];
     const activeOption = options[selectedDay] || options[0];
@@ -279,7 +308,103 @@ function SharedMealCard({ slot, meal, customFoodsMap, isEn }) {
                         </div>
                     </div>
                 )}
+
+                {/* Nutritionist notes */}
+                <NutritionistNote note={note} canEdit={canEdit} onSave={onSaveNote} isEn={isEn} />
             </div>
+        </div>
+    );
+}
+
+function NutritionistNote({ note, canEdit, onSave, isEn }) {
+    const [editing, setEditing] = useState(false);
+    const [text, setText] = useState(note || '');
+    const [saved, setSaved] = useState(false);
+
+    if (!canEdit && !note) return null;
+
+    if (!canEdit && note) {
+        return (
+            <div className="mt-2 pt-2 border-t border-slate-700/30">
+                <div className="flex items-start gap-2 text-xs">
+                    <MessageSquare size={12} className="text-emerald-400 mt-0.5 shrink-0" />
+                    <div>
+                        <span className="text-emerald-400 font-bold text-[10px]">
+                            {isEn ? 'Nutritionist note' : 'Nota del nutricionista'}
+                        </span>
+                        <p className="text-slate-300 mt-0.5">{note}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-2 pt-2 border-t border-slate-700/30">
+            {!editing ? (
+                <div>
+                    <button
+                        onClick={() => {
+                            setText(note || '');
+                            setEditing(true);
+                        }}
+                        className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                        <MessageSquare size={12} />
+                        {note
+                            ? isEn
+                                ? 'Edit note'
+                                : 'Editar nota'
+                            : isEn
+                              ? 'Add note for patient'
+                              : 'Añadir nota para el paciente'}
+                    </button>
+                    {note && <p className="text-xs text-slate-300 mt-1 pl-5">{note}</p>}
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-[10px] text-emerald-400 font-bold">
+                        <MessageSquare size={11} /> {isEn ? 'Nutritionist note' : 'Nota del nutricionista'}
+                    </div>
+                    <textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder={isEn ? 'Write a note about this meal...' : 'Escribe una nota sobre esta comida...'}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white outline-none focus:border-emerald-500 resize-none"
+                        rows={2}
+                        autoFocus
+                    />
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setEditing(false)}
+                            className="flex-1 py-1.5 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-bold"
+                        >
+                            {isEn ? 'Cancel' : 'Cancelar'}
+                        </button>
+                        <button
+                            onClick={async () => {
+                                await onSave(text);
+                                setSaved(true);
+                                setTimeout(() => {
+                                    setSaved(false);
+                                    setEditing(false);
+                                }, 1000);
+                            }}
+                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1"
+                        >
+                            {saved ? (
+                                <>
+                                    <Check size={11} /> {isEn ? 'Saved' : 'Guardado'}
+                                </>
+                            ) : (
+                                <>
+                                    <Send size={11} /> {isEn ? 'Save' : 'Guardar'}
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

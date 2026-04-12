@@ -25,6 +25,7 @@ import {
     Undo2,
     UtensilsCrossed,
     AlertTriangle,
+    Share2,
 } from 'lucide-react';
 import { FOOD_DATABASE, FOOD_CATEGORIES } from '../data/food_database';
 import CustomFoodModal from '../components/CustomFoodModal';
@@ -1149,12 +1150,25 @@ export default function Diet() {
             <header className="space-y-3">
                 <div className="flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-white">{t('diet.title')}</h1>
-                    <button
-                        onClick={() => setTrainingDay(!trainingDay)}
-                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${trainingDay ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
-                    >
-                        {trainingDay ? t('diet.modeTraining') : t('diet.modeRest')}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            to="/profile"
+                            className="p-2 text-slate-500 hover:text-emerald-400 transition-colors"
+                            title={
+                                t('profile.language') === 'Idioma'
+                                    ? 'Compartir con nutricionista'
+                                    : 'Share with nutritionist'
+                            }
+                        >
+                            <Share2 size={18} />
+                        </Link>
+                        <button
+                            onClick={() => setTrainingDay(!trainingDay)}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${trainingDay ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
+                        >
+                            {trainingDay ? t('diet.modeTraining') : t('diet.modeRest')}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Selector de hora de entreno (solo visible en modo entreno) */}
