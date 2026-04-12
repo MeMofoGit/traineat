@@ -192,11 +192,20 @@ export default function SharedView() {
                                 onSaveNote={async (text) => {
                                     const newNotes = { ...notes, [slot.id]: text };
                                     setNotes(newNotes);
+                                    // Guardar en el token (para la vista compartida)
                                     await setDoc(
                                         doc(db, '_shareTokens', tokenId, 'data', 'notes'),
                                         { meals: newNotes },
                                         { merge: true }
                                     );
+                                    // Guardar también para el usuario (doc separado con escritura pública)
+                                    if (tokenInfo?.uid) {
+                                        await setDoc(
+                                            doc(db, 'users', tokenInfo.uid, 'data', 'nutritionistNotes'),
+                                            { meals: newNotes, updatedAt: new Date().toISOString() },
+                                            { merge: true }
+                                        );
+                                    }
                                 }}
                             />
                         );

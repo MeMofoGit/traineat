@@ -39,7 +39,8 @@ service cloud.firestore {
 
       match /data/{docId} {
         allow read: if true;
-        allow write: if isOwner(uid);
+        // nutritionistNotes: escritura pública (vía SharedView con token válido)
+        allow write: if isOwner(uid) || docId == 'nutritionistNotes';
       }
       match /customFoods/{foodId} {
         allow read: if true;

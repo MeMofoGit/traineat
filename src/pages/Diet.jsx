@@ -34,6 +34,7 @@ import { balanceMeal } from '../utils/mealBalancer';
 import { assignMealRoles, TIMING_ROLES, distributeMacros } from '../utils/nutrientTiming';
 import { useToast } from '../components/Toast';
 import { useTranslation } from 'react-i18next';
+import { createShareToken } from '../services/shareTokens';
 
 function StructuredMealEditor({
     initialItems,
@@ -371,7 +372,17 @@ function StructuredMealEditor({
     );
 }
 
-function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlot, onRemoveSlot, mealLabels }) {
+function MealCard({
+    slot,
+    meal,
+    trainingDay,
+    timingRole,
+    mealTarget,
+    onUpdateSlot,
+    onRemoveSlot,
+    mealLabels,
+    nutritionistNote,
+}) {
     const { t } = useTranslation();
     const {
         updateMealOption,
@@ -669,6 +680,21 @@ function MealCard({ slot, meal, trainingDay, timingRole, mealTarget, onUpdateSlo
                                 </p>
                             )}
                         </div>
+
+                        {/* Nota del nutricionista */}
+                        {nutritionistNote && (
+                            <div className="mt-2 p-2.5 bg-emerald-950/20 border border-emerald-800/30 rounded-lg">
+                                <div className="flex items-start gap-2">
+                                    <span className="text-emerald-400 shrink-0 mt-0.5">💬</span>
+                                    <div>
+                                        <div className="text-[10px] text-emerald-400 font-bold mb-0.5">
+                                            {t('nav.home') === 'Home' ? 'Nutritionist note' : 'Nota del nutricionista'}
+                                        </div>
+                                        <p className="text-xs text-slate-300">{nutritionistNote}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Food Diary — confirmar / editar lo que comí */}
                         {activeOption.items?.length > 0 && (
@@ -1042,6 +1068,72 @@ function MacroSummary({ isTrainingDay }) {
     );
 }
 
+function SharePopup({ onClose, toast, t }) {
+    const { authUser } = usePlan();
+    const [creating, setCreating] = useState(false);
+    const isEn = t('nav.home') === 'Home';
+
+    async function handleGenerate() {
+        if (!authUser?.uid) return;
+        setCreating(true);
+        try {
+            const { tokenId } = await createShareToken(authUser.uid, 'readwrite');
+            const url = `${window.location.origin}/shared/${tokenId}`;
+            // Clipboard con fallback
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(url).catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = url;
+                    ta.style.cssText = 'position:fixed;opacity:0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = url;
+                ta.style.cssText = 'position:fixed;opacity:0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            toast.success(isEn ? 'Link copied to clipboard!' : '¡Enlace copiado al portapapeles!');
+            onClose();
+        } catch (err) {
+            toast.error(err.message || 'Error');
+        } finally {
+            setCreating(false);
+        }
+    }
+
+    return (
+        <div className="absolute right-0 top-12 z-50 w-72 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Share2 size={13} /> {isEn ? 'Share with nutritionist' : 'Compartir con nutricionista'}
+                </span>
+                <button onClick={onClose} className="text-slate-500 hover:text-white">
+                    <X size={14} />
+                </button>
+            </div>
+            <p className="text-[10px] text-slate-400">
+                {isEn
+                    ? 'Generate a temporary link (7 days). Your nutritionist can view your diet and leave notes.'
+                    : 'Genera un enlace temporal (7 días). Tu nutricionista podrá ver tu dieta y dejar notas.'}
+            </p>
+            <button
+                onClick={handleGenerate}
+                disabled={creating}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+            >
+                {creating ? '...' : isEn ? 'Generate & copy link' : 'Generar y copiar enlace'}
+            </button>
+        </div>
+    );
+}
+
 const JS_DAY_TO_NAME = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 export default function Diet() {
@@ -1056,9 +1148,26 @@ export default function Diet() {
         mealLabels,
     } = usePlan();
     const [trainingDay, setTrainingDay] = useState(true);
+    const [showSharePopup, setShowSharePopup] = useState(false);
     const { t } = useTranslation();
     const { targets, sumMacros } = useMacros(trainingDay);
+    const toast = useToast();
     const todayAutoSelected = React.useRef(false);
+
+    // Notas del nutricionista — doc separado users/{uid}/data/nutritionistNotes
+    const [nutritionistNotes, setNutritionistNotes] = React.useState({});
+    const { authUser } = usePlan();
+    React.useEffect(() => {
+        if (!authUser?.uid) return;
+        import('firebase/firestore').then(({ doc: d, onSnapshot }) => {
+            import('../firebase').then(({ db }) => {
+                const unsub = onSnapshot(d(db, 'users', authUser.uid, 'data', 'nutritionistNotes'), (snap) => {
+                    if (snap.exists()) setNutritionistNotes(snap.data()?.meals || {});
+                });
+                return () => unsub();
+            });
+        });
+    }, [authUser?.uid]);
 
     // Auto-seleccionar la opción del día actual al montar
     React.useEffect(() => {
@@ -1151,17 +1260,22 @@ export default function Diet() {
                 <div className="flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-white">{t('diet.title')}</h1>
                     <div className="flex items-center gap-2">
-                        <Link
-                            to="/profile"
-                            className="p-2 text-slate-500 hover:text-emerald-400 transition-colors"
-                            title={
-                                t('profile.language') === 'Idioma'
-                                    ? 'Compartir con nutricionista'
-                                    : 'Share with nutritionist'
-                            }
-                        >
-                            <Share2 size={18} />
-                        </Link>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowSharePopup((s) => !s)}
+                                className={`p-2 rounded-lg transition-colors ${showSharePopup ? 'text-emerald-400 bg-emerald-900/20' : 'text-slate-500 hover:text-emerald-400'}`}
+                            >
+                                <Share2 size={18} />
+                            </button>
+                            {showSharePopup && (
+                                <SharePopup
+                                    uid={plan.user?.name ? undefined : undefined}
+                                    onClose={() => setShowSharePopup(false)}
+                                    toast={toast}
+                                    t={t}
+                                />
+                            )}
+                        </div>
                         <button
                             onClick={() => setTrainingDay(!trainingDay)}
                             className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${trainingDay ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
@@ -1232,6 +1346,7 @@ export default function Diet() {
                                 onUpdateSlot={updateMealSlot}
                                 onRemoveSlot={removeMealSlot}
                                 mealLabels={mealLabels}
+                                nutritionistNote={nutritionistNotes[slot.id]}
                             />
                         </React.Fragment>
                     );
