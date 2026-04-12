@@ -80,6 +80,17 @@ export default defineConfig({
             },
         }),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'],
+                    icons: ['lucide-react'],
+                    i18n: ['i18next', 'react-i18next'],
+                },
+            },
+        },
+    },
     server: {
         host: true,
         https: true,
